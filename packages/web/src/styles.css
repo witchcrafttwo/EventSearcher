@@ -1,0 +1,313 @@
+:root {
+  color: #14213d;
+  background: #f8fafc;
+  font-family: Inter, "Noto Sans JP", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  line-height: 1.5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+.appShell {
+  min-height: 100vh;
+  background:
+    linear-gradient(180deg, rgba(15, 118, 110, 0.08), rgba(248, 250, 252, 0) 320px),
+    #f8fafc;
+}
+
+.workspace {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.toolbar h1,
+.panelHeader h2,
+.eventCard h3 {
+  margin: 0;
+  letter-spacing: 0;
+}
+
+.toolbar h1 {
+  font-size: clamp(28px, 5vw, 44px);
+  line-height: 1.12;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #0f766e;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.iconButton,
+.primaryButton,
+.secondaryButton,
+.chip {
+  border: 0;
+  border-radius: 8px;
+  min-height: 44px;
+}
+
+.iconButton {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  background: #14213d;
+  color: white;
+}
+
+.notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+  border-left: 4px solid #f97316;
+  background: #fff7ed;
+  color: #7c2d12;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  gap: 18px;
+  align-items: start;
+}
+
+.profilePanel,
+.eventsPanel {
+  background: white;
+  border: 1px solid #dbe4ea;
+  border-radius: 8px;
+  box-shadow: 0 18px 40px rgba(20, 33, 61, 0.08);
+}
+
+.profilePanel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  position: sticky;
+  top: 16px;
+}
+
+.eventsPanel {
+  padding: 18px;
+}
+
+.panelHeader {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.panelHeader.split {
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 14px;
+}
+
+label,
+fieldset {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+label span,
+legend {
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+input {
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 0 12px;
+  background: #fff;
+  color: #14213d;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  padding: 0 13px;
+  background: #edf2f7;
+  color: #334155;
+}
+
+.chip.selected {
+  background: #0f766e;
+  color: #fff;
+}
+
+.actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.primaryButton,
+.secondaryButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 0 14px;
+  font-weight: 700;
+}
+
+.primaryButton {
+  background: #14213d;
+  color: #fff;
+}
+
+.secondaryButton {
+  background: #f97316;
+  color: #fff;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.status {
+  max-width: 360px;
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  text-align: right;
+}
+
+.eventList {
+  display: grid;
+  gap: 12px;
+}
+
+.eventCard {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+.eventMeta,
+.eventFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.eventMeta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.eventCard h3 {
+  font-size: 18px;
+}
+
+.eventCard p {
+  margin: 0;
+  color: #334155;
+}
+
+.eventFooter a {
+  color: #0f766e;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.emptyState {
+  display: grid;
+  place-items: center;
+  min-height: 220px;
+  color: #64748b;
+  border: 1px dashed #cbd5e1;
+  border-radius: 8px;
+}
+
+@media (max-width: 860px) {
+  .workspace {
+    width: min(100% - 20px, 720px);
+    padding: 18px 0;
+  }
+
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .profilePanel {
+    position: static;
+  }
+
+  .panelHeader.split,
+  .toolbar {
+    align-items: flex-start;
+  }
+
+  .status {
+    text-align: left;
+  }
+}
+
+@media (max-width: 520px) {
+  .toolbar h1 {
+    font-size: 30px;
+  }
+
+  .actions,
+  .panelHeader.split {
+    grid-template-columns: 1fr;
+  }
+
+  .panelHeader.split {
+    display: grid;
+  }
+
+  .eventMeta,
+  .eventFooter {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

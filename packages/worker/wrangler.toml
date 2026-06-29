@@ -1,0 +1,32 @@
+name = "prefecture-events-ai"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+# 定期ingest: 6時間ごと（INGEST_INTERVAL_MINUTES=360相当）
+[triggers]
+crons = ["0 */6 * * *"]
+
+[vars]
+AWS_REGION = "ap-northeast-1"
+AI_PROVIDER = "bedrock"
+BEDROCK_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
+PROFILES_TABLE = "prefecture-events-ai-profiles"
+EVENTS_TABLE = "prefecture-events-ai-events"
+SUBSCRIPTIONS_TABLE = "prefecture-events-ai-subscriptions"
+EVENT_SOURCES_JSON = "[]"
+VAPID_SUBJECT = "mailto:admin@example.com"
+
+# --- AgentCore Web Search（自動発見 / IAM署名で呼ぶ）---
+# 検索機能は us-east-1 限定。Gateway作成後にエンドポイントURLを設定する。
+# 認証は Gateway を「IAMインバウンド認証」で作成し、上のAWSキーで署名して呼ぶ（Cognito不要）。
+AGENTCORE_GATEWAY_URL = ""              # https://xxxx.gateway.bedrock-agentcore.us-east-1.amazonaws.com
+WEB_SEARCH_TOOL_NAME = ""              # tools/list で確認した名前（例: events-search___WebSearch）
+SEARCH_AREAS = "[]"                    # 例: ["新潟県","新潟市"]
+SEARCH_MAX_RESULTS = "10"
+
+# 以下はシークレット。コミットせず `wrangler secret put` で設定してください:
+#   wrangler secret put AWS_ACCESS_KEY_ID
+#   wrangler secret put AWS_SECRET_ACCESS_KEY
+#   wrangler secret put VAPID_PUBLIC_KEY
+#   wrangler secret put VAPID_PRIVATE_KEY

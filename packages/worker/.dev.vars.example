@@ -1,0 +1,8 @@
+# ローカル開発用シークレット（wrangler dev が読み込む）
+# このファイルをコピーして `.dev.vars` を作り、実際の値を入れてください。
+# `.dev.vars` は .gitignore 済み。コミットしないこと。
+
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+
+# AgentCore Web Search も同じ上のIAMキーで動きます（Cognito不要）。追加のシークレットは不要です。

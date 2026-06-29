@@ -1,0 +1,9 @@
+node_modules/
+dist/
+build/
+cdk.out/
+.env
+.env.*
+!.env.example
+.dev.vars
+*.tsbuildinfo
