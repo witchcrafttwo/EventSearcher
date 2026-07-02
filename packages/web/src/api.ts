@@ -12,9 +12,12 @@ export type EventItem = {
   summary: string;
   url: string;
   area: string;
+  category?: string;
+  imageUrl?: string;
   sourceName: string;
   publishedAt: string;
   eventDate?: string;
+  eventEndDate?: string;
   targetAgeMin?: number;
   targetAgeMax?: number;
   interests: string[];
@@ -40,6 +43,21 @@ export async function saveProfile(profile: Profile): Promise<Profile & { profile
 export async function fetchEvents(profileId: string): Promise<EventItem[]> {
   const response = await fetch(`${apiPrefix()}/profiles/${encodeURIComponent(profileId)}/events`);
   if (!response.ok) throw new Error("イベント一覧を取得できませんでした");
+  const body = await response.json() as { events: EventItem[] };
+  return body.events;
+}
+
+export async function fetchAreas(): Promise<string[]> {
+  const response = await fetch(`${apiPrefix()}/areas`);
+  if (!response.ok) return [];
+  const body = await response.json() as { areas: string[] };
+  return body.areas;
+}
+
+export async function searchEvents(area: string): Promise<EventItem[]> {
+  const query = area ? `?area=${encodeURIComponent(area)}` : "";
+  const response = await fetch(`${apiPrefix()}/events${query}`);
+  if (!response.ok) throw new Error("イベントを検索できませんでした");
   const body = await response.json() as { events: EventItem[] };
   return body.events;
 }

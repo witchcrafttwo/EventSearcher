@@ -1,216 +1,287 @@
-import { Bell, CalendarDays, MapPin, RefreshCw, Save, Search, Smartphone } from "lucide-react";
+import { Bookmark, BookmarkCheck, CalendarDays, MapPin, Search, Sparkles } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { fetchEvents, hasApiConfig, saveProfile, savePushSubscription, type EventItem, type Profile } from "./api";
-import { subscribePushNotifications } from "./pwa";
+import { fetchAreas, hasApiConfig, searchEvents, type EventItem } from "./api";
 
-const interestOptions = ["自然", "科学", "工作", "音楽", "スポーツ", "読書", "アート", "食育", "乗り物"];
-const defaultProfile: Profile = {
-  childAge: 6,
-  interests: ["自然", "工作"],
-  area: "県内",
-  notificationLeadDays: 45
-};
+// 愛媛県内20市町
+const EHIME_AREAS = [
+  "松山市", "今治市", "宇和島市", "八幡浜市", "新居浜市", "西条市", "大洲市", "伊予市", "四国中央市", "西予市", "東温市",
+  "上島町", "久万高原町", "松前町", "砥部町", "内子町", "伊方町", "松野町", "鬼北町", "愛南町"
+];
+
+const CATEGORIES = ["祭り・伝統", "音楽・ライブ", "スポーツ", "自然・アウトドア", "アート・展示", "グルメ・マルシェ", "ワークショップ", "文化・講演", "デパート・モール", "その他"];
+
+type SortKey = "recent" | "dateAsc" | "dateDesc";
+type ViewKey = "all" | "saved";
+const PAGE_SIZE = 12;
+const AREA_KEY = "events-ai-area";
+const BOOKMARK_KEY = "events-ai-bookmarks";
+
+function loadBookmarks(): Record<string, EventItem> {
+  try {
+    const raw = localStorage.getItem(BOOKMARK_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, EventItem>;
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+}
 
 export function App() {
-  const [profile, setProfile] = useState<Profile>(() => loadProfile());
+  const [area, setArea] = useState(() => localStorage.getItem(AREA_KEY) ?? "");
+  const [category, setCategory] = useState("");
   const [events, setEvents] = useState<EventItem[]>([]);
-  const [status, setStatus] = useState("プロフィールを保存すると、条件に合うイベントを確認できます。");
+  const [status, setStatus] = useState("地域やカテゴリを選んで検索できます。");
   const [isBusy, setIsBusy] = useState(false);
+  const [extraAreas, setExtraAreas] = useState<string[]>([]);
+  const [sortBy, setSortBy] = useState<SortKey>("dateAsc");
+  const [hidePast, setHidePast] = useState(true);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [view, setView] = useState<ViewKey>("all");
+  const [bookmarks, setBookmarks] = useState<Record<string, EventItem>>(() => loadBookmarks());
 
-  const profileId = profile.profileId;
   const apiReady = hasApiConfig();
-  const matchedCount = useMemo(() => events.length, [events]);
+
+  const areaOptions = useMemo(() => {
+    const set = new Set<string>(EHIME_AREAS);
+    for (const a of extraAreas) set.add(a);
+    return [...set];
+  }, [extraAreas]);
+
+  const bookmarkCount = Object.keys(bookmarks).length;
+  const baseList = view === "saved" ? Object.values(bookmarks) : events;
+  const filtered = useMemo(
+    () => sortAndFilter(baseList, { hidePast, sortBy, category }),
+    [baseList, hidePast, sortBy, category]
+  );
+  const visible = filtered.slice(0, visibleCount);
+  const newCount = useMemo(() => events.filter(isNew).length, [events]);
 
   useEffect(() => {
-    if (profileId && apiReady) void reloadEvents(profileId);
-  }, [profileId, apiReady]);
+    void fetchAreas().then(setExtraAreas).catch(() => undefined);
+    void runSearch(localStorage.getItem(AREA_KEY) ?? "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks));
+  }, [bookmarks]);
+
+  function toggleBookmark(event: EventItem) {
+    setBookmarks((prev) => {
+      const next = { ...prev };
+      if (next[event.eventId]) delete next[event.eventId];
+      else next[event.eventId] = event;
+      return next;
+    });
+  }
+
+  function switchView(next: ViewKey) {
+    setView(next);
+    setVisibleCount(PAGE_SIZE);
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await run("プロフィールを保存しました。", async () => {
-      const saved = await saveProfile(profile);
-      setProfile(saved);
-      localStorage.setItem("events-ai-profile", JSON.stringify(saved));
-      await reloadEvents(saved.profileId);
-    });
+    localStorage.setItem(AREA_KEY, area);
+    setVisibleCount(PAGE_SIZE);
+    await runSearch(area);
   }
 
-  async function handlePushRegistration() {
-    if (!profileId) {
-      setStatus("先にプロフィールを保存してください。");
-      return;
-    }
-    await run("スマホ通知を登録しました。", async () => {
-      const subscription = await subscribePushNotifications();
-      await savePushSubscription(profileId, subscription);
-    });
+  function handleReset() {
+    setArea("");
+    setCategory("");
+    setSortBy("dateAsc");
+    setVisibleCount(PAGE_SIZE);
+    localStorage.removeItem(AREA_KEY);
+    void runSearch("");
   }
 
-  async function reloadEvents(id = profileId) {
-    if (!id) return;
-    await run("イベント一覧を更新しました。", async () => {
-      setEvents(await fetchEvents(id));
-    });
-  }
-
-  async function run(doneMessage: string, task: () => Promise<void>) {
+  async function runSearch(target: string) {
     setIsBusy(true);
-    setStatus("処理中です。");
+    setStatus("検索中です。");
     try {
-      await task();
-      setStatus(doneMessage);
+      setEvents(await searchEvents(target));
+      setStatus(target ? `「${target}」のイベント` : "すべての地域のイベント");
     } catch (error) {
-      setStatus(error instanceof Error ? error.message : "処理に失敗しました。");
+      setStatus(error instanceof Error ? error.message : "検索に失敗しました。");
     } finally {
       setIsBusy(false);
     }
   }
 
-  function toggleInterest(interest: string) {
-    setProfile((current) => ({
-      ...current,
-      interests: current.interests.includes(interest)
-        ? current.interests.filter((item) => item !== interest)
-        : [...current.interests, interest]
-    }));
-  }
-
   return (
-    <main className="appShell">
-      <section className="workspace">
-        <div className="toolbar">
-          <div>
-            <p className="eyebrow">県内イベントAI通知</p>
-            <h1>条件に合う子ども向けイベント</h1>
-          </div>
-          <button className="iconButton" type="button" title="イベント再取得" onClick={() => void reloadEvents()} disabled={!profileId || isBusy}>
-            <RefreshCw size={20} />
+    <div className="enavi">
+      <header className="enaviHeader">
+        <div className="enaviHeaderInner">
+          <h1>えひめイベントナビ</h1>
+          <p>愛媛県内20市町のイベント情報をまとめてチェック</p>
+        </div>
+      </header>
+
+      <main className="enaviMain">
+        {!apiReady && <div className="notice">API未接続です。</div>}
+
+        <div className="viewTabs">
+          <button
+            type="button"
+            className={view === "all" ? "viewTab active" : "viewTab"}
+            onClick={() => switchView("all")}
+          >
+            <Search size={15} /> すべてのイベント
+          </button>
+          <button
+            type="button"
+            className={view === "saved" ? "viewTab active" : "viewTab"}
+            onClick={() => switchView("saved")}
+          >
+            <BookmarkCheck size={15} /> ブックマーク（{bookmarkCount}）
           </button>
         </div>
 
-        {!apiReady && (
-          <div className="notice">
-            <Search size={18} />
-            <span>API未接続です。デプロイ後に VITE_API_BASE_URL を設定してください。</span>
+        <form className="filterCard" onSubmit={handleSubmit} hidden={view === "saved"}>
+          <div className="filterRow">
+            <label className="field">
+              <span><MapPin size={14} /> 地域</span>
+              <select value={area} onChange={(e) => setArea(e.target.value)}>
+                <option value="">すべての市町</option>
+                {areaOptions.map((a) => <option key={a} value={a}>{a}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span>カテゴリ</span>
+              <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                <option value="">すべて</option>
+                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </label>
           </div>
-        )}
+          <div className="filterActions">
+            <button className="primaryButton" type="submit" disabled={isBusy}>
+              <Search size={16} /> 検索
+            </button>
+            <button className="ghostButton" type="button" onClick={handleReset} disabled={isBusy}>リセット</button>
+          </div>
+        </form>
 
-        <div className="layout">
-          <form className="profilePanel" onSubmit={handleSubmit}>
-            <div className="panelHeader">
-              <Smartphone size={20} />
-              <h2>通知条件</h2>
-            </div>
-
-            <label>
-              <span>子の年齢</span>
-              <input
-                type="number"
-                min="0"
-                max="18"
-                value={profile.childAge}
-                onChange={(event) => setProfile({ ...profile, childAge: Number(event.target.value) })}
-              />
-            </label>
-
-            <label>
-              <span>居住エリア</span>
-              <input
-                value={profile.area}
-                placeholder="例: 県央、市北部、〇〇市"
-                onChange={(event) => setProfile({ ...profile, area: event.target.value })}
-              />
-            </label>
-
-            <fieldset>
-              <legend>興味</legend>
-              <div className="chips">
-                {interestOptions.map((interest) => (
-                  <button
-                    className={profile.interests.includes(interest) ? "chip selected" : "chip"}
-                    key={interest}
-                    type="button"
-                    onClick={() => toggleInterest(interest)}
-                  >
-                    {interest}
-                  </button>
-                ))}
-              </div>
-            </fieldset>
-
-            <label>
-              <span>何日先まで通知するか</span>
-              <input
-                type="number"
-                min="1"
-                max="180"
-                value={profile.notificationLeadDays}
-                onChange={(event) => setProfile({ ...profile, notificationLeadDays: Number(event.target.value) })}
-              />
-            </label>
-
-            <div className="actions">
-              <button className="primaryButton" type="submit" disabled={isBusy || !apiReady}>
-                <Save size={18} />
-                保存
-              </button>
-              <button className="secondaryButton" type="button" onClick={() => void handlePushRegistration()} disabled={isBusy || !apiReady}>
-                <Bell size={18} />
-                通知
-              </button>
-            </div>
-          </form>
-
-          <section className="eventsPanel" aria-live="polite">
-            <div className="panelHeader split">
-              <div>
-                <p className="eyebrow">最新候補</p>
-                <h2>{matchedCount}件</h2>
-              </div>
-              <p className="status">{status}</p>
-            </div>
-
-            <div className="eventList">
-              {events.map((event) => (
-                <article className="eventCard" key={event.eventId}>
-                  <div className="eventMeta">
-                    <span><MapPin size={15} />{event.area}</span>
-                    <span><CalendarDays size={15} />{event.eventDate ?? formatDate(event.publishedAt)}</span>
-                  </div>
-                  <h3>{event.title}</h3>
-                  <p>{event.summary}</p>
-                  <div className="eventFooter">
-                    <span>{event.sourceName}</span>
-                    <a href={event.url} target="_blank" rel="noreferrer">詳細</a>
-                  </div>
-                </article>
-              ))}
-              {events.length === 0 && (
-                <div className="emptyState">
-                  <Search size={34} />
-                  <p>まだ条件に合うイベントがありません。</p>
-                </div>
-              )}
-            </div>
-          </section>
+        <div className="listHeader">
+          <div>
+            <p className="newBadge"><Sparkles size={14} /> 新着イベント {newCount}</p>
+            <p className="listStatus">{view === "saved" ? "ブックマーク一覧" : status}・{filtered.length}件</p>
+          </div>
+          <label className="sortLabel">
+            <span>並び替え</span>
+            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)}>
+              <option value="dateAsc">開催日が近い順</option>
+              <option value="dateDesc">開催日が遠い順</option>
+              <option value="recent">新着順</option>
+            </select>
+          </label>
         </div>
-      </section>
-    </main>
+
+        <label className="checkboxLabel listCheckbox">
+          <input type="checkbox" checked={hidePast} onChange={(e) => setHidePast(e.target.checked)} />
+          <span>終了したイベントを隠す</span>
+        </label>
+
+        <div className="cardGrid">
+          {visible.map((event) => {
+            const saved = Boolean(bookmarks[event.eventId]);
+            return (
+            <article className="enaviCard" key={event.eventId}>
+              <div className="cardThumb">
+                {event.imageUrl
+                  ? <img src={event.imageUrl} alt="" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                  : <div className="thumbPlaceholder"><CalendarDays size={28} /></div>}
+                {event.category && <span className="catBadge">{event.category}</span>}
+                <button
+                  type="button"
+                  className={saved ? "bookmarkButton saved" : "bookmarkButton"}
+                  onClick={() => toggleBookmark(event)}
+                  aria-label={saved ? "ブックマークを外す" : "ブックマークに追加"}
+                  title={saved ? "ブックマークを外す" : "ブックマークに追加"}
+                >
+                  {saved ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
+                </button>
+              </div>
+              <div className="cardBody">
+                <div className="cardMeta">
+                  <span><MapPin size={13} />{event.area || "地域不明"}</span>
+                  <span><CalendarDays size={13} />{formatEventDate(event)}</span>
+                </div>
+                <h3>{event.title}</h3>
+                <p>{event.summary}</p>
+                <div className="cardFooter">
+                  <span>{event.sourceName}</span>
+                  <a href={event.url} target="_blank" rel="noreferrer">詳細 →</a>
+                </div>
+              </div>
+            </article>
+            );
+          })}
+          {visible.length === 0 && (
+            <div className="emptyState">
+              {view === "saved" ? <Bookmark size={34} /> : <Search size={34} />}
+              <p>{view === "saved" ? "まだブックマークがありません。気になるイベントの🔖を押すとここに保存されます。" : "該当するイベントがありません。"}</p>
+            </div>
+          )}
+        </div>
+
+        {visibleCount < filtered.length && (
+          <button className="moreButton" type="button" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
+            もっと見る（残り{filtered.length - visibleCount}件）
+          </button>
+        )}
+      </main>
+
+      <footer className="enaviFooter">
+        © 2026 えひめイベントナビ ｜ 地域イベント情報をAIが自動収集・要約
+      </footer>
+    </div>
   );
 }
 
-function loadProfile(): Profile {
-  const fromUrl = new URLSearchParams(window.location.search).get("profileId");
-  const saved = localStorage.getItem("events-ai-profile");
-  if (!saved) return fromUrl ? { ...defaultProfile, profileId: fromUrl } : defaultProfile;
-  try {
-    const profile = JSON.parse(saved) as Profile;
-    return fromUrl ? { ...profile, profileId: fromUrl } : profile;
-  } catch {
-    return defaultProfile;
+function sortAndFilter(events: EventItem[], opts: { hidePast: boolean; sortBy: SortKey; category: string }): EventItem[] {
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  let list = events;
+  if (opts.category) list = list.filter((e) => (e.category ?? "その他") === opts.category);
+  if (opts.hidePast) {
+    list = list.filter((e) => {
+      const end = e.eventEndDate ?? e.eventDate;
+      if (!end) return true;
+      const d = new Date(end);
+      return Number.isNaN(d.getTime()) || d >= startOfToday;
+    });
   }
+
+  return [...list].sort((a, b) => {
+    if (opts.sortBy === "recent") return dateValue(b.publishedAt, 0) - dateValue(a.publishedAt, 0);
+    if (opts.sortBy === "dateDesc") return dateValue(b.eventDate, 0) - dateValue(a.eventDate, 0);
+    return dateValue(a.eventDate, Infinity) - dateValue(b.eventDate, Infinity); // dateAsc
+  });
 }
 
-function formatDate(value: string): string {
-  return new Intl.DateTimeFormat("ja-JP", { month: "short", day: "numeric" }).format(new Date(value));
+function dateValue(value: string | undefined, fallback: number): number {
+  if (!value) return fallback;
+  const t = new Date(value).getTime();
+  return Number.isNaN(t) ? fallback : t;
+}
+
+function isNew(event: EventItem): boolean {
+  const t = new Date(event.publishedAt).getTime();
+  return !Number.isNaN(t) && Date.now() - t < 24 * 60 * 60 * 1000;
+}
+
+function formatEventDate(event: EventItem): string {
+  if (!event.eventDate) return "日程調整中";
+  const start = formatMaybe(event.eventDate);
+  if (event.eventEndDate && event.eventEndDate !== event.eventDate) return `${start}〜${formatMaybe(event.eventEndDate)}`;
+  return start;
+}
+
+function formatMaybe(value: string): string {
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? value : new Intl.DateTimeFormat("ja-JP", { month: "short", day: "numeric" }).format(d);
 }

@@ -3,18 +3,32 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
-# 定期ingest: 6時間ごと（INGEST_INTERVAL_MINUTES=360相当）
-[triggers]
-crons = ["0 */6 * * *"]
+# workers.dev には公開せず、カスタムドメインのみで公開する
+workers_dev = false
+
+# 公開先: カスタムドメイン（witchcrafttwo.com が同じCloudflareアカウントのゾーンである必要あり）
+[[routes]]
+pattern = "event.witchcrafttwo.com"
+custom_domain = true
+
+# 定期ingest: 6時間ごと。※workers.devサブドメイン登録後に有効化する（未登録だとデプロイがcode:10063で失敗するため一旦無効）
+# [triggers]
+# crons = ["0 */6 * * *"]
 
 [vars]
 AWS_REGION = "ap-northeast-1"
 AI_PROVIDER = "bedrock"
-BEDROCK_MODEL_ID = "anthropic.claude-3-haiku-20240307-v1:0"
+BEDROCK_MODEL_ID = "zai.glm-5"
+# 賢い外部AI(GLM等)を使う場合: AI_PROVIDER を "openai" にして以下を設定
+#   AI_PROVIDER = "openai"
+#   LLM_BASE_URL = "https://api.z.ai/api/paas/v4"   # GLM(Z.ai)。BigModelなら https://open.bigmodel.cn/api/paas/v4
+#   LLM_MODEL = "glm-4.6"                            # 例: glm-4.6 / glm-5.1 / deepseek-chat / gpt-4o-mini
+#   （LLM_API_KEY は .dev.vars / wrangler secret で設定）
 PROFILES_TABLE = "prefecture-events-ai-profiles"
 EVENTS_TABLE = "prefecture-events-ai-events"
 SUBSCRIPTIONS_TABLE = "prefecture-events-ai-subscriptions"
-EVENT_SOURCES_JSON = "[]"
+SOURCES_TABLE = "prefecture-events-ai-sources"
+EVENT_SOURCES_JSON = '[]'
 VAPID_SUBJECT = "mailto:admin@example.com"
 
 # --- AgentCore Web Search（自動発見 / IAM署名で呼ぶ）---

@@ -6,19 +6,21 @@ import type { Env } from "./types.js";
  * AWS SDK の ConverseCommand と等価のリクエストを Workers から直接送る。
  */
 export async function converse(env: Env, prompt: string): Promise<string> {
+  const region = env.BEDROCK_REGION || env.AWS_REGION;
   const client = new AwsClient({
     accessKeyId: env.AWS_ACCESS_KEY_ID,
     secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
-    region: env.AWS_REGION,
+    region,
     service: "bedrock"
   });
 
   const modelId = env.BEDROCK_MODEL_ID;
-  const url = `https://bedrock-runtime.${env.AWS_REGION}.amazonaws.com/model/${encodeURIComponent(modelId)}/converse`;
+  const url = `https://bedrock-runtime.${region}.amazonaws.com/model/${encodeURIComponent(modelId)}/converse`;
 
   const response = await client.fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
+    signal: AbortSignal.timeout(30000),
     body: JSON.stringify({
       messages: [{ role: "user", content: [{ text: prompt }] }],
       inferenceConfig: { maxTokens: 800, temperature: 0.1 }

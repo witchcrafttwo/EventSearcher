@@ -52,6 +52,10 @@ export class DynamoClient {
     });
   }
 
+  async deleteItem(tableName: string, key: Record<string, unknown>): Promise<void> {
+    await this.call("DeleteItem", { TableName: tableName, Key: marshall(key) });
+  }
+
   async query<T>(params: {
     tableName: string;
     indexName?: string;
@@ -86,6 +90,18 @@ export class DynamoClient {
       exclusiveStartKey = result.LastEvaluatedKey;
     } while (exclusiveStartKey);
     return items;
+  }
+
+  /** テーブル作成（初期セットアップ用）。既に存在する場合は created:false を返す */
+  async createTable(body: Record<string, unknown>): Promise<{ table: string; created: boolean }> {
+    const table = String(body.TableName);
+    try {
+      await this.call("CreateTable", body);
+      return { table, created: true };
+    } catch (error) {
+      if (String(error).includes("ResourceInUseException")) return { table, created: false };
+      throw error;
+    }
   }
 }
 

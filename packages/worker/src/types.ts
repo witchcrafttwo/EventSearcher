@@ -4,6 +4,7 @@ export type EventSourceConfig = {
   url: string;
   area: string;
   type: "html" | "rss";
+  enabled?: boolean;
 };
 
 export type UserProfile = {
@@ -25,6 +26,7 @@ export type RawEventCandidate = {
   area: string;
   snippet: string;
   publishedAt: string;
+  imageUrl?: string;
 };
 
 export type EventRecord = {
@@ -38,6 +40,9 @@ export type EventRecord = {
   sourceName: string;
   publishedAt: string;
   eventDate?: string;
+  eventEndDate?: string;
+  category?: string;
+  imageUrl?: string;
   targetAgeMin?: number;
   targetAgeMax?: number;
   interests: string[];
@@ -66,8 +71,14 @@ export type Env = {
   PROFILES_TABLE: string;
   EVENTS_TABLE: string;
   SUBSCRIPTIONS_TABLE: string;
+  SOURCES_TABLE: string;
   AI_PROVIDER?: string;
   BEDROCK_MODEL_ID: string;
+  BEDROCK_REGION?: string; // Bedrock呼び出し専用リージョン（未指定ならAWS_REGION）
+  // --- OpenAI互換の外部LLM（GLM / DeepSeek / OpenAI など）。AI_PROVIDER=openai のとき使用 ---
+  LLM_BASE_URL?: string; // 例: https://api.z.ai/api/paas/v4
+  LLM_API_KEY?: string; // secret
+  LLM_MODEL?: string; // 例: glm-4.6
   EVENT_SOURCES_JSON?: string;
   INGEST_INTERVAL_MINUTES?: string;
   // --- AgentCore Web Search（自動発見 / IAM署名で呼ぶ）---
@@ -78,4 +89,5 @@ export type Env = {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
+  ADMIN_TOKEN?: string; // secret。管理系API(/admin/*, /sources*)の認証トークン
 };

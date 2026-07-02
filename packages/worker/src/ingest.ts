@@ -3,45 +3,89 @@ import { discoverCandidates, isDiscoveryEnabled } from "./discovery.js";
 import { DynamoClient } from "./dynamo.js";
 import { enrichCandidate } from "./event-ai.js";
 import { matchesProfile } from "./matching.js";
+import { buildAiText, fetchPageData } from "./page.js";
 import { fetchCandidates } from "./source-fetcher.js";
-import type { Env, EventRecord, EventSourceConfig, PushSubscriptionRecord, UserProfile } from "./types.js";
+import { loadAllSources } from "./sources.js";
+import type { Env, EventRecord, PushSubscriptionRecord, RawEventCandidate, UserProfile } from "./types.js";
 
-export async function runIngest(env: Env): Promise<{ saved: number; notified: number }> {
+export async function runIngest(
+  env: Env,
+  options: { force?: boolean; limit?: number; sourceId?: string } = {}
+): Promise<{ saved: number; notified: number; candidates: number }> {
+  const { force = false, limit = Number.POSITIVE_INFINITY, sourceId } = options;
   const ddb = new DynamoClient(env);
 
-  // AgentCore Web Search が設定済みなら自動発見、未設定なら従来のURLリストを使う
-  const candidates = isDiscoveryEnabled(env)
-    ? await discoverCandidates(env)
-    : await fetchCandidates(parseSources(env.EVENT_SOURCES_JSON ?? "[]"));
+  // AgentCore Web Search が設定済みなら自動発見、未設定なら登録済みURL(+環境変数)から収集
+  let candidates: RawEventCandidate[];
+  if (isDiscoveryEnabled(env)) {
+    candidates = await discoverCandidates(env);
+  } else {
+    const allSources = await loadAllSources(env);
+    const sources = sourceId ? allSources.filter((s) => s.id === sourceId) : allSources;
+    candidates = await fetchCandidates(sources);
+  }
 
   const profiles = await ddb.scanAll<UserProfile>(env.PROFILES_TABLE);
   const subscriptions = await ddb.scanAll<PushSubscriptionRecord>(env.SUBSCRIPTIONS_TABLE);
 
   const newEvents: EventRecord[] = [];
   for (const candidate of candidates) {
+    if (newEvents.length >= limit) break;
     const eventId = await createEventId(candidate.sourceId, candidate.url, candidate.title);
-    const exists = await ddb.getItem<EventRecord>(env.EVENTS_TABLE, { eventId });
-    if (exists) continue;
+    if (!force) {
+      const exists = await ddb.getItem<EventRecord>(env.EVENTS_TABLE, { eventId });
+      if (exists) continue;
+    }
 
-    const enriched = await enrichCandidate(env, candidate);
+    const hydrated = await hydrate(candidate);
+    const enriched = await enrichCandidate(env, hydrated);
+    if (!enriched) continue; // 一覧/索引ページなどはスキップ
     const event: EventRecord = {
       ...enriched,
+      imageUrl: hydrated.imageUrl,
       eventId,
       eventType: "event",
       createdAt: new Date().toISOString()
     };
 
-    await ddb.putItem(env.EVENTS_TABLE, event, "attribute_not_exists(eventId)");
+    // force時は上書き、通常時は重複防止の条件付き
+    await ddb.putItem(env.EVENTS_TABLE, event, force ? undefined : "attribute_not_exists(eventId)");
     newEvents.push(event);
   }
 
   const notified = await notifyMatches(env, newEvents, profiles, subscriptions);
-  return { saved: newEvents.length, notified };
+  return { saved: newEvents.length, notified, candidates: candidates.length };
 }
 
-function parseSources(value: string): EventSourceConfig[] {
-  const parsed = JSON.parse(value) as EventSourceConfig[];
-  return parsed.filter((source) => source.id && source.url && source.type);
+/** eventsテーブルを空にする（再収集前のリセット用） */
+export async function clearEvents(env: Env): Promise<{ deleted: number }> {
+  const ddb = new DynamoClient(env);
+  const events = await ddb.scanAll<EventRecord>(env.EVENTS_TABLE);
+  for (const event of events) {
+    await ddb.deleteItem(env.EVENTS_TABLE, { eventId: event.eventId });
+  }
+  return { deleted: events.length };
+}
+
+/**
+ * 定期収集(Cron)用。登録ソースを1つずつ順番に処理する。
+ * 1サイトでエラーが出ても止めず、各ソースの新規処理には上限を付けて1回の実行を軽く保つ。
+ */
+export async function runScheduledIngest(env: Env, perSourceLimit = 10): Promise<void> {
+  if (isDiscoveryEnabled(env)) {
+    await runIngest(env).catch((error) => console.error("scheduled ingest (discovery) failed", error));
+    return;
+  }
+
+  const sources = await loadAllSources(env);
+  for (const source of sources) {
+    try {
+      const result = await runIngest(env, { sourceId: source.id, limit: perSourceLimit });
+      console.log(`ingest ${source.name}: saved ${result.saved}/${result.candidates}`);
+    } catch (error) {
+      console.error(`scheduled ingest failed for ${source.name}`, error);
+    }
+  }
 }
 
 async function notifyMatches(
@@ -67,4 +111,32 @@ async function notifyMatches(
 
 function createEventId(sourceId: string, url: string, title: string): Promise<string> {
   return sha256Hex(`${sourceId}:${url}:${title}`);
+}
+
+/** 候補の詳細ページを取得し、本文テキストを snippet に、代表画像を imageUrl に詰める */
+async function hydrate(candidate: RawEventCandidate): Promise<RawEventCandidate> {
+  const { text, imageUrl } = await fetchPageData(candidate.url);
+  return {
+    ...candidate,
+    snippet: text ? buildAiText(text) : candidate.snippet,
+    imageUrl: imageUrl ?? candidate.imageUrl
+  };
+}
+
+/**
+ * DynamoDB を使わず「取得→AI要約」だけ実行して結果を返す動作確認用。
+ * テーブル未作成でもスクレイピング＋Bedrockの動きを確認できる。
+ */
+export async function previewIngest(env: Env, limit: number): Promise<{ count: number; events: Array<Omit<EventRecord, "eventId" | "eventType" | "createdAt">> }> {
+  const candidates = isDiscoveryEnabled(env)
+    ? await discoverCandidates(env)
+    : await fetchCandidates(await loadAllSources(env));
+
+  const targets = candidates.slice(0, limit);
+  const events = [];
+  for (const candidate of targets) {
+    const enriched = await enrichCandidate(env, await hydrate(candidate));
+    if (enriched) events.push(enriched);
+  }
+  return { count: candidates.length, events };
 }

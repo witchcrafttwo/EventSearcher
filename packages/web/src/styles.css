@@ -225,6 +225,15 @@ button:disabled {
   border: 1px solid #e2e8f0;
   border-radius: 8px;
   background: #ffffff;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.eventCard h3,
+.eventCard p,
+.eventCard a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .eventMeta,
@@ -235,12 +244,16 @@ button:disabled {
   gap: 12px;
   color: #64748b;
   font-size: 13px;
+  flex-wrap: wrap;
+  min-width: 0;
 }
 
 .eventMeta span {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .eventCard h3 {
@@ -250,6 +263,11 @@ button:disabled {
 .eventCard p {
   margin: 0;
   color: #334155;
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }
 
 .eventFooter a {
@@ -310,4 +328,231 @@ button:disabled {
     align-items: flex-start;
     flex-direction: column;
   }
+}
+
+/* 情報源URLパネル */
+.sourcePanel {
+  background: white;
+  border-radius: 16px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  display: grid;
+  gap: 12px;
+}
+
+.panelHeaderTitle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.hint {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.sourceForm {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.sourceForm input {
+  flex: 1 1 220px;
+  height: 40px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+}
+
+.sourceList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.sourceList li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+}
+
+.sourceInfo {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sourceName {
+  font-weight: 600;
+  font-size: 14px;
+}
+
+.sourceInfo a {
+  color: #2563eb;
+  font-size: 12px;
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourceTag {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.sourceEmpty {
+  color: #94a3b8;
+  font-size: 13px;
+  padding: 8px;
+}
+
+/* エリア選択・イベント並び替えコントロール */
+.profilePanel select {
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+  width: 100%;
+}
+
+.eventControls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.checkboxLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 14px;
+  color: #334155;
+  cursor: pointer;
+}
+
+.checkboxLabel input {
+  width: 16px;
+  height: 16px;
+  accent-color: #0f766e;
+}
+
+.sortLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: #334155;
+}
+
+.sortLabel select {
+  height: 36px;
+  padding: 0 8px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 14px;
+}
+
+/* エリア検索バー */
+.searchBar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  background: white;
+  border-radius: 14px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  flex-wrap: wrap;
+}
+
+.searchArea {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 240px;
+  color: #0f766e;
+}
+
+.searchArea select {
+  flex: 1;
+  height: 44px;
+  padding: 0 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 16px;
+  background: #fff;
+  color: #0f172a;
+}
+
+/* ソースON/OFFトグル */
+.sourceToggle {
+  display: flex;
+  align-items: center;
+  padding-right: 4px;
+}
+
+.sourceToggle input {
+  width: 18px;
+  height: 18px;
+  accent-color: #0f766e;
+  cursor: pointer;
+}
+
+.sourceDisabled {
+  opacity: 0.5;
+}
+
+.sourceDisabled .sourceName::after {
+  content: "（非表示）";
+  color: #ef4444;
+  font-size: 12px;
+}
+
+/* 危険な操作（全削除）ボタン */
+.dangerRow {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.dangerButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 12px;
+  border: 1px solid #fecaca;
+  border-radius: 8px;
+  background: #fef2f2;
+  color: #dc2626;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dangerButton:hover:not(:disabled) {
+  background: #fee2e2;
+}
+
+.dangerButton:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

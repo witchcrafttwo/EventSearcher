@@ -88,8 +88,7 @@ export async function discoverCandidates(env: Env): Promise<RawEventCandidate[]>
       if (!result.url || seen.has(result.url)) continue;
       seen.add(result.url);
 
-      // 検索スニペットは発見の手掛かり。本文は自前取得で上書きする。
-      const pageText = (await fetchPageText(result.url)) || result.text || result.title || "";
+      // 本文取得は ingest 側の hydrate でまとめて行う（二重取得を避ける）
       candidates.push({
         sourceId: "agentcore-web-search",
         sourceName: result.title || area,
@@ -97,30 +96,13 @@ export async function discoverCandidates(env: Env): Promise<RawEventCandidate[]>
         title: (result.title || area).slice(0, 120),
         url: result.url,
         area,
-        snippet: pageText.slice(0, 900),
+        snippet: (result.text || result.title || "").slice(0, 900),
         publishedAt: normalizeDate(result.publishedDate)
       });
     }
   }
 
   return candidates;
-}
-
-/** 単一ページを取得してプレーンテキスト化（要約材料） */
-async function fetchPageText(url: string): Promise<string> {
-  try {
-    const response = await fetch(url, { headers: { "user-agent": "prefecture-events-ai/0.1" } });
-    if (!response.ok) return "";
-    const html = await response.text();
-    return html
-      .replace(/<script[\s\S]*?<\/script>/gi, " ")
-      .replace(/<style[\s\S]*?<\/style>/gi, " ")
-      .replace(/<[^>]+>/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  } catch {
-    return "";
-  }
 }
 
 /** Gateway URL のホスト名からリージョンを抽出（例: ...bedrock-agentcore.us-east-1.amazonaws.com） */
