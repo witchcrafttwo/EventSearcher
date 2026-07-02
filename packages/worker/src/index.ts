@@ -176,7 +176,7 @@ app.get("/admin/ai-debug", async (c) => {
   const url = c.req.query("url");
   if (url) {
     const text = await fetchPageText(url);
-    const candidate = { sourceId: "debug", sourceName: "debug", sourceUrl: url, title: "debug", url, area: "", snippet: buildAiText(text) };
+    const candidate = { sourceId: "debug", sourceName: "debug", sourceUrl: url, title: "debug", url, area: "", snippet: buildAiText(text), publishedAt: new Date().toISOString() };
     return c.json(await debugEnrich(c.env, candidate));
   }
   const candidates = await fetchCandidates(await loadAllSources(c.env));
