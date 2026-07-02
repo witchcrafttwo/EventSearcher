@@ -5,7 +5,7 @@ import { sha256Hex } from "./crypto.js";
 import { DynamoClient } from "./dynamo.js";
 import { isDiscoveryEnabled, webSearch } from "./discovery.js";
 import { debugEnrich, enrichCandidate } from "./event-ai.js";
-import { clearEvents, previewIngest, runIngest, runScheduledIngest } from "./ingest.js";
+import { applySourceCategory, clearEvents, previewIngest, runIngest, runScheduledIngest } from "./ingest.js";
 import { chat } from "./llm.js";
 import { matchesProfile } from "./matching.js";
 import { buildAiText, fetchPageText } from "./page.js";
@@ -148,10 +148,15 @@ app.delete("/sources/:id", async (c) => {
   return c.json(await deleteSource(c.env, c.req.param("id")));
 });
 
-// ソースの属性更新（ON/OFF・固定カテゴリ）
+// ソースの属性更新（ON/OFF・固定カテゴリ）。固定カテゴリ設定時は既存イベントにも即反映。
 app.patch("/sources/:id", async (c) => {
   const body = await c.req.json<{ enabled?: boolean; forceCategory?: string }>();
-  return c.json({ source: await updateSource(c.env, c.req.param("id"), body) });
+  const source = await updateSource(c.env, c.req.param("id"), body);
+  let categoryUpdated = 0;
+  if (body.forceCategory !== undefined && source.forceCategory) {
+    categoryUpdated = (await applySourceCategory(c.env, source)).updated;
+  }
+  return c.json({ source, categoryUpdated });
 });
 
 // DB不要の動作確認: 取得→AI要約 の結果だけ返す。?limit=3

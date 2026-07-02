@@ -74,8 +74,12 @@ export function Admin() {
     const prev = source.forceCategory;
     setSources((current) => current.map((s) => (s.id === source.id ? { ...s, forceCategory: forceCategory || undefined } : s)));
     try {
-      await setSourceCategory(source.id, forceCategory);
-      setStatus(forceCategory ? `「${source.name}」のカテゴリを「${forceCategory}」に固定しました。` : `「${source.name}」のカテゴリ固定を解除しました。`);
+      const result = await setSourceCategory(source.id, forceCategory);
+      if (forceCategory) {
+        setStatus(`「${source.name}」のカテゴリを「${forceCategory}」に固定しました（既存${result.categoryUpdated}件も更新）。`);
+      } else {
+        setStatus(`「${source.name}」のカテゴリ固定を解除しました。`);
+      }
     } catch (error) {
       setSources((current) => current.map((s) => (s.id === source.id ? { ...s, forceCategory: prev } : s)));
       setStatus(error instanceof Error ? error.message : "更新に失敗しました。");

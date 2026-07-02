@@ -67,13 +67,15 @@ export async function setSourceEnabled(id: string, enabled: boolean): Promise<vo
   if (!response.ok) throw new Error("ON/OFFの更新に失敗しました");
 }
 
-export async function setSourceCategory(id: string, forceCategory: string): Promise<void> {
+export async function setSourceCategory(id: string, forceCategory: string): Promise<{ categoryUpdated: number }> {
   const response = await adminFetch(`/sources/${encodeURIComponent(id)}`, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ forceCategory })
   });
   if (!response.ok) throw new Error("カテゴリ設定の更新に失敗しました");
+  const body = (await response.json().catch(() => ({}))) as { categoryUpdated?: number };
+  return { categoryUpdated: body.categoryUpdated ?? 0 };
 }
 
 export async function runIngest(sourceId?: string): Promise<{ saved: number; notified: number; candidates: number }> {

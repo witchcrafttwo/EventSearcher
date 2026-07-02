@@ -6,7 +6,7 @@ import { matchesProfile } from "./matching.js";
 import { buildAiText, fetchPageData } from "./page.js";
 import { fetchCandidates } from "./source-fetcher.js";
 import { loadAllSources } from "./sources.js";
-import type { Env, EventRecord, PushSubscriptionRecord, RawEventCandidate, UserProfile } from "./types.js";
+import type { Env, EventRecord, EventSourceConfig, PushSubscriptionRecord, RawEventCandidate, UserProfile } from "./types.js";
 
 export async function runIngest(
   env: Env,
@@ -76,6 +76,34 @@ export async function clearEvents(env: Env): Promise<{ deleted: number }> {
     await ddb.deleteItem(env.EVENTS_TABLE, { eventId: event.eventId });
   }
   return { deleted: events.length };
+}
+
+/**
+ * ソースの固定カテゴリを、そのサイトの既存イベントにも即反映する（AI再実行なし）。
+ * イベントは sourceId 一致 or URLホスト一致で対象判定（レガシーデータのid不一致対策）。
+ */
+export async function applySourceCategory(env: Env, source: EventSourceConfig): Promise<{ updated: number }> {
+  if (!source.forceCategory) return { updated: 0 };
+  const ddb = new DynamoClient(env);
+  const events = await ddb.scanAll<EventRecord>(env.EVENTS_TABLE);
+  const host = hostOf(source.url);
+  let updated = 0;
+  for (const ev of events) {
+    const match = ev.sourceId === source.id || (host !== "" && hostOf(ev.url) === host);
+    if (match && ev.category !== source.forceCategory) {
+      await ddb.putItem(env.EVENTS_TABLE, { ...ev, category: source.forceCategory });
+      updated++;
+    }
+  }
+  return { updated };
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
 }
 
 /**
