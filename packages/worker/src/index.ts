@@ -32,6 +32,7 @@ app.use("/sources", adminAuth);
 app.use("/sources/*", adminAuth);
 
 app.get("/health", (c) => c.json({ ok: true }));
+app.get("/version", (c) => c.json({ version: "readtime-category-v2" }));
 
 app.post("/profiles", async (c) => {
   const body = await c.req.json<Partial<UserProfile>>();
