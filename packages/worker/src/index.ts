@@ -17,16 +17,6 @@ import type { Env, EventRecord, PushSubscriptionRecord, RawEventCandidate, UserP
 const app = new Hono<{ Bindings: Env }>();
 export { app };
 
-// bindings が渡らない実行環境(Node/Vercel等)では process.env を bindings として使う。
-// Cloudflare では c.env に既にテーブル名等が入るのでそのまま優先する。
-app.use("*", async (c, next) => {
-  const e = c.env as Partial<Env> | undefined;
-  if ((!e || !e.EVENTS_TABLE) && typeof process !== "undefined" && process.env) {
-    c.env = process.env as unknown as Env;
-  }
-  await next();
-});
-
 app.use("*", cors());
 
 // 管理系API(/admin/*, /sources*)はトークン保護。ADMIN_TOKEN未設定なら素通り(ローカル開発用)。
