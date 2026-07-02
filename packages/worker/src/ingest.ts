@@ -72,8 +72,10 @@ export async function runIngest(
 export async function clearEvents(env: Env): Promise<{ deleted: number }> {
   const ddb = new DynamoClient(env);
   const events = await ddb.scanAll<EventRecord>(env.EVENTS_TABLE);
-  for (const event of events) {
-    await ddb.deleteItem(env.EVENTS_TABLE, { eventId: event.eventId });
+  const BATCH = 25;
+  for (let i = 0; i < events.length; i += BATCH) {
+    const slice = events.slice(i, i + BATCH);
+    await Promise.all(slice.map((event) => ddb.deleteItem(env.EVENTS_TABLE, { eventId: event.eventId })));
   }
   return { deleted: events.length };
 }
@@ -84,18 +86,22 @@ export async function clearEvents(env: Env): Promise<{ deleted: number }> {
  */
 export async function applySourceCategory(env: Env, source: EventSourceConfig): Promise<{ updated: number }> {
   if (!source.forceCategory) return { updated: 0 };
+  const category = source.forceCategory;
   const ddb = new DynamoClient(env);
   const events = await ddb.scanAll<EventRecord>(env.EVENTS_TABLE);
   const host = hostOf(source.url);
-  let updated = 0;
-  for (const ev of events) {
-    const match = ev.sourceId === source.id || (host !== "" && hostOf(ev.url) === host);
-    if (match && ev.category !== source.forceCategory) {
-      await ddb.putItem(env.EVENTS_TABLE, { ...ev, category: source.forceCategory });
-      updated++;
-    }
+
+  const targets = events.filter(
+    (ev) => (ev.sourceId === source.id || (host !== "" && hostOf(ev.url) === host)) && ev.category !== category
+  );
+
+  // 60秒制限に収めるため並列バッチで書き込む
+  const BATCH = 25;
+  for (let i = 0; i < targets.length; i += BATCH) {
+    const slice = targets.slice(i, i + BATCH);
+    await Promise.all(slice.map((ev) => ddb.putItem(env.EVENTS_TABLE, { ...ev, category })));
   }
-  return { updated };
+  return { updated: targets.length };
 }
 
 function hostOf(url: string): string {
