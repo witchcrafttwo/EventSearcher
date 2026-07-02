@@ -393,3 +393,40 @@
   border-radius: 999px;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
 }
+
+/* カテゴリ複数選択チップ */
+.categoryChips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.categoryChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font-size: 13px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.categoryChip input {
+  display: none;
+}
+
+.categoryChip:hover {
+  border-color: #0f766e;
+}
+
+.categoryChip.active {
+  background: #0f766e;
+  border-color: #0f766e;
+  color: #fff;
+  font-weight: 700;
+}

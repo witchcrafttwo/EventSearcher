@@ -29,7 +29,7 @@ function loadBookmarks(): Record<string, EventItem> {
 
 export function App() {
   const [area, setArea] = useState(() => localStorage.getItem(AREA_KEY) ?? "");
-  const [category, setCategory] = useState("");
+  const [categories, setCategories] = useState<string[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [status, setStatus] = useState("地域やカテゴリを選んで検索できます。");
   const [isBusy, setIsBusy] = useState(false);
@@ -51,8 +51,8 @@ export function App() {
   const bookmarkCount = Object.keys(bookmarks).length;
   const baseList = view === "saved" ? Object.values(bookmarks) : events;
   const filtered = useMemo(
-    () => sortAndFilter(baseList, { hidePast, sortBy, category }),
-    [baseList, hidePast, sortBy, category]
+    () => sortAndFilter(baseList, { hidePast, sortBy, categories }),
+    [baseList, hidePast, sortBy, categories]
   );
   const visible = filtered.slice(0, visibleCount);
   const newCount = useMemo(() => events.filter(isNew).length, [events]);
@@ -81,6 +81,11 @@ export function App() {
     setVisibleCount(PAGE_SIZE);
   }
 
+  function toggleCategory(cat: string) {
+    setVisibleCount(PAGE_SIZE);
+    setCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
+  }
+
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     localStorage.setItem(AREA_KEY, area);
@@ -90,7 +95,7 @@ export function App() {
 
   function handleReset() {
     setArea("");
-    setCategory("");
+    setCategories([]);
     setSortBy("dateAsc");
     setVisibleCount(PAGE_SIZE);
     localStorage.removeItem(AREA_KEY);
@@ -148,13 +153,21 @@ export function App() {
                 {areaOptions.map((a) => <option key={a} value={a}>{a}</option>)}
               </select>
             </label>
-            <label className="field">
-              <span>カテゴリ</span>
-              <select value={category} onChange={(e) => setCategory(e.target.value)}>
-                <option value="">すべて</option>
-                {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </label>
+          </div>
+          <div className="field">
+            <span>カテゴリ（複数選択できます）</span>
+            <div className="categoryChips">
+              {CATEGORIES.map((c) => (
+                <label key={c} className={categories.includes(c) ? "categoryChip active" : "categoryChip"}>
+                  <input
+                    type="checkbox"
+                    checked={categories.includes(c)}
+                    onChange={() => toggleCategory(c)}
+                  />
+                  <span>{c}</span>
+                </label>
+              ))}
+            </div>
           </div>
           <div className="filterActions">
             <button className="primaryButton" type="submit" disabled={isBusy}>
@@ -242,12 +255,12 @@ export function App() {
   );
 }
 
-function sortAndFilter(events: EventItem[], opts: { hidePast: boolean; sortBy: SortKey; category: string }): EventItem[] {
+function sortAndFilter(events: EventItem[], opts: { hidePast: boolean; sortBy: SortKey; categories: string[] }): EventItem[] {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
   let list = events;
-  if (opts.category) list = list.filter((e) => (e.category ?? "その他") === opts.category);
+  if (opts.categories.length > 0) list = list.filter((e) => opts.categories.includes(e.category ?? "その他"));
   if (opts.hidePast) {
     list = list.filter((e) => {
       const end = e.eventEndDate ?? e.eventDate;
