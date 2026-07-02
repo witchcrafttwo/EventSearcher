@@ -90,4 +90,5 @@ export type Env = {
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
   ADMIN_TOKEN?: string; // secret。管理系API(/admin/*, /sources*)の認証トークン
+  CRON_SECRET?: string; // Vercel Cron 用。設定すると /cron/ingest が Bearer 一致を要求
 };

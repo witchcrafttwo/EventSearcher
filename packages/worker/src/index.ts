@@ -17,6 +17,16 @@ import type { Env, EventRecord, PushSubscriptionRecord, RawEventCandidate, UserP
 const app = new Hono<{ Bindings: Env }>();
 export { app };
 
+// bindings が渡らない実行環境(Node/Vercel等)では process.env を bindings として使う。
+// Cloudflare では c.env に既にテーブル名等が入るのでそのまま優先する。
+app.use("*", async (c, next) => {
+  const e = c.env as Partial<Env> | undefined;
+  if ((!e || !e.EVENTS_TABLE) && typeof process !== "undefined" && process.env) {
+    c.env = process.env as unknown as Env;
+  }
+  await next();
+});
+
 app.use("*", cors());
 
 // 管理系API(/admin/*, /sources*)はトークン保護。ADMIN_TOKEN未設定なら素通り(ローカル開発用)。
@@ -109,6 +119,19 @@ app.post("/admin/ingest", async (c) => {
 // eventsテーブルを空にする（再収集前のリセット）
 app.post("/admin/clear-events", async (c) => {
   return c.json(await clearEvents(c.env));
+});
+
+// Vercel Cron 用の定期収集トリガ（GET）。CRON_SECRET を設定した場合は Bearer 一致を要求。
+// Vercel は CRON_SECRET を設定すると Authorization: Bearer <CRON_SECRET> を自動付与する。
+app.get("/cron/ingest", async (c) => {
+  const secret = c.env.CRON_SECRET;
+  if (secret && c.req.header("authorization") !== `Bearer ${secret}`) {
+    return c.json({ message: "unauthorized" }, 401);
+  }
+  c.executionCtx.waitUntil(
+    runScheduledIngest(c.env).catch((error) => console.error("cron ingest failed", error))
+  );
+  return c.json({ ok: true, started: true });
 });
 
 // 初期セットアップ: DynamoDBテーブルを3つ作成（冪等）
