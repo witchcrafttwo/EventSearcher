@@ -74,9 +74,9 @@ export function Admin() {
     const prev = source.forceCategory;
     setSources((current) => current.map((s) => (s.id === source.id ? { ...s, forceCategory: forceCategory || undefined } : s)));
     try {
-      const result = await setSourceCategory(source.id, forceCategory);
+      await setSourceCategory(source.id, forceCategory);
       if (forceCategory) {
-        setStatus(`「${source.name}」のカテゴリを「${forceCategory}」に固定しました（既存${result.categoryUpdated}件も更新）。`);
+        setStatus(`「${source.name}」のカテゴリを「${forceCategory}」に固定しました（表示に即反映されます）。`);
       } else {
         setStatus(`「${source.name}」のカテゴリ固定を解除しました。`);
       }

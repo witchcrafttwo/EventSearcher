@@ -5,14 +5,14 @@ import { sha256Hex } from "./crypto.js";
 import { DynamoClient } from "./dynamo.js";
 import { isDiscoveryEnabled, webSearch } from "./discovery.js";
 import { debugEnrich, enrichCandidate } from "./event-ai.js";
-import { applySourceCategory, clearEvents, previewIngest, runIngest, runScheduledIngest } from "./ingest.js";
+import { clearEvents, previewIngest, runIngest, runScheduledIngest } from "./ingest.js";
 import { chat } from "./llm.js";
 import { matchesProfile } from "./matching.js";
 import { buildAiText, fetchPageText } from "./page.js";
 import { setupTables } from "./setup.js";
 import { fetchCandidates } from "./source-fetcher.js";
 import { addSource, deleteSource, listSources, loadAllSources, updateSource } from "./sources.js";
-import type { Env, EventRecord, PushSubscriptionRecord, RawEventCandidate, UserProfile } from "./types.js";
+import type { Env, EventRecord, EventSourceConfig, PushSubscriptionRecord, RawEventCandidate, UserProfile } from "./types.js";
 
 const app = new Hono<{ Bindings: Env }>();
 export { app };
@@ -54,13 +54,19 @@ app.get("/events", async (c) => {
     scanIndexForward: false,
     limit: 200
   });
-  const disabled = await buildDisabledMatcher(c.env);
+  const allSources = await loadAllSources(c.env);
+  const disabled = buildDisabledMatcherFrom(allSources);
+  const applyForced = buildForcedCategory(allSources);
   const filtered = events
     .filter((e) => !disabled(e)) // OFFのサイトは表示しない
     .filter((e) => {
       if (!area) return true;
       const ea = (e.area ?? "").trim();
       return ea !== "" && (ea.includes(area) || area.includes(ea));
+    })
+    .map((e) => {
+      const forced = applyForced(e); // 固定カテゴリのサイトは表示時に上書き
+      return forced ? { ...e, category: forced } : e;
     });
   return c.json({ events: filtered.slice(0, 100) });
 });
@@ -148,15 +154,11 @@ app.delete("/sources/:id", async (c) => {
   return c.json(await deleteSource(c.env, c.req.param("id")));
 });
 
-// ソースの属性更新（ON/OFF・固定カテゴリ）。固定カテゴリ設定時は既存イベントにも即反映。
+// ソースの属性更新（ON/OFF・固定カテゴリ）。固定カテゴリは表示時に動的適用するのでここは保存のみ（高速）。
 app.patch("/sources/:id", async (c) => {
   const body = await c.req.json<{ enabled?: boolean; forceCategory?: string }>();
   const source = await updateSource(c.env, c.req.param("id"), body);
-  let categoryUpdated = 0;
-  if (body.forceCategory !== undefined && source.forceCategory) {
-    categoryUpdated = (await applySourceCategory(c.env, source)).updated;
-  }
-  return c.json({ source, categoryUpdated });
+  return c.json({ source });
 });
 
 // DB不要の動作確認: 取得→AI要約 の結果だけ返す。?limit=3
@@ -296,11 +298,23 @@ function clampNumber(value: unknown, min: number, max: number): number {
 
 /** OFFソース判定: sourceId一致 or URLのホスト名一致で非表示にする（過去データのid不一致にも対応） */
 async function buildDisabledMatcher(env: Env): Promise<(event: EventRecord) => boolean> {
-  const sources = await loadAllSources(env);
+  return buildDisabledMatcherFrom(await loadAllSources(env));
+}
+
+/** 既に取得済みのソース一覧からOFF判定を作る */
+function buildDisabledMatcherFrom(sources: EventSourceConfig[]): (event: EventRecord) => boolean {
   const disabled = sources.filter((s) => s.enabled === false);
   const ids = new Set(disabled.map((s) => s.id));
   const hosts = new Set(disabled.map((s) => hostOf(s.url)).filter(Boolean));
   return (event) => ids.has(event.sourceId) || hosts.has(hostOf(event.url));
+}
+
+/** 固定カテゴリのサイトに一致したら、そのカテゴリを返す（表示時に上書き用） */
+function buildForcedCategory(sources: EventSourceConfig[]): (event: EventRecord) => string | undefined {
+  const forced = sources.filter((s) => s.forceCategory);
+  const byId = new Map(forced.map((s) => [s.id, s.forceCategory as string]));
+  const byHost = new Map(forced.map((s) => [hostOf(s.url), s.forceCategory as string]).filter(([h]) => h));
+  return (event) => byId.get(event.sourceId) ?? byHost.get(hostOf(event.url));
 }
 
 function hostOf(url: string): string {

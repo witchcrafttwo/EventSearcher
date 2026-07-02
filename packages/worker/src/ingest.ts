@@ -81,38 +81,6 @@ export async function clearEvents(env: Env): Promise<{ deleted: number }> {
 }
 
 /**
- * ソースの固定カテゴリを、そのサイトの既存イベントにも即反映する（AI再実行なし）。
- * イベントは sourceId 一致 or URLホスト一致で対象判定（レガシーデータのid不一致対策）。
- */
-export async function applySourceCategory(env: Env, source: EventSourceConfig): Promise<{ updated: number }> {
-  if (!source.forceCategory) return { updated: 0 };
-  const category = source.forceCategory;
-  const ddb = new DynamoClient(env);
-  const events = await ddb.scanAll<EventRecord>(env.EVENTS_TABLE);
-  const host = hostOf(source.url);
-
-  const targets = events.filter(
-    (ev) => (ev.sourceId === source.id || (host !== "" && hostOf(ev.url) === host)) && ev.category !== category
-  );
-
-  // 60秒制限に収めるため並列バッチで書き込む
-  const BATCH = 25;
-  for (let i = 0; i < targets.length; i += BATCH) {
-    const slice = targets.slice(i, i + BATCH);
-    await Promise.all(slice.map((ev) => ddb.putItem(env.EVENTS_TABLE, { ...ev, category })));
-  }
-  return { updated: targets.length };
-}
-
-function hostOf(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return "";
-  }
-}
-
-/**
  * 定期収集(Cron)用。登録ソースを1つずつ順番に処理する。
  * 1サイトでエラーが出ても止めず、各ソースの新規処理には上限を付けて1回の実行を軽く保つ。
  */
