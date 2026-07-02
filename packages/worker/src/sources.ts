@@ -46,8 +46,13 @@ export async function updateSource(
 ): Promise<EventSourceConfig> {
   if (!id) throw new Error("id is required");
   const ddb = new DynamoClient(env);
-  const existing = await ddb.getItem<EventSourceConfig>(env.SOURCES_TABLE, { id });
-  if (!existing) throw new Error("source not found");
+  let existing = await ddb.getItem<EventSourceConfig>(env.SOURCES_TABLE, { id });
+  if (!existing) {
+    // ファイル/既定由来などDB未登録のソースは、統合結果から取得してDBに登録(upsert)する
+    const all = await loadAllSources(env);
+    existing = all.find((s) => s.id === id);
+    if (!existing) throw new Error("source not found");
+  }
   const updated: EventSourceConfig = { ...existing };
   if (patch.enabled !== undefined) updated.enabled = patch.enabled;
   if (patch.forceCategory !== undefined) {
