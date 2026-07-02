@@ -378,3 +378,18 @@
   background: #f59e0b;
   color: #fff;
 }
+
+/* 新着(NEW)タグ: 収集から7日間だけ表示。カテゴリバッジと重ならないよう左下に配置 */
+.newTag {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  background: #ef4444;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+}

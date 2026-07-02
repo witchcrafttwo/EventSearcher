@@ -194,6 +194,7 @@ export function App() {
                   ? <img src={event.imageUrl} alt="" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
                   : <div className="thumbPlaceholder"><CalendarDays size={28} /></div>}
                 {event.category && <span className="catBadge">{event.category}</span>}
+                {isNew(event) && <span className="newTag">NEW</span>}
                 <button
                   type="button"
                   className={saved ? "bookmarkButton saved" : "bookmarkButton"}
@@ -270,8 +271,10 @@ function dateValue(value: string | undefined, fallback: number): number {
 }
 
 function isNew(event: EventItem): boolean {
-  const t = new Date(event.publishedAt).getTime();
-  return !Number.isNaN(t) && Date.now() - t < 24 * 60 * 60 * 1000;
+  // 収集日時(createdAt)基準。無ければpublishedAtで代用。7日以内ならNEW。
+  const base = event.createdAt ?? event.publishedAt;
+  const t = new Date(base).getTime();
+  return !Number.isNaN(t) && Date.now() - t < 7 * 24 * 60 * 60 * 1000;
 }
 
 function formatEventDate(event: EventItem): string {

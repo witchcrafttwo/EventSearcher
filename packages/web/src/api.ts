@@ -16,6 +16,7 @@ export type EventItem = {
   imageUrl?: string;
   sourceName: string;
   publishedAt: string;
+  createdAt?: string;
   eventDate?: string;
   eventEndDate?: string;
   targetAgeMin?: number;
