@@ -7,6 +7,7 @@ export type Source = {
   area: string;
   type: "html" | "rss";
   enabled?: boolean;
+  forceCategory?: string;
 };
 
 const TOKEN_KEY = "events-ai-admin-token";
@@ -64,6 +65,15 @@ export async function setSourceEnabled(id: string, enabled: boolean): Promise<vo
     body: JSON.stringify({ enabled })
   });
   if (!response.ok) throw new Error("ON/OFFの更新に失敗しました");
+}
+
+export async function setSourceCategory(id: string, forceCategory: string): Promise<void> {
+  const response = await adminFetch(`/sources/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ forceCategory })
+  });
+  if (!response.ok) throw new Error("カテゴリ設定の更新に失敗しました");
 }
 
 export async function runIngest(sourceId?: string): Promise<{ saved: number; notified: number; candidates: number }> {

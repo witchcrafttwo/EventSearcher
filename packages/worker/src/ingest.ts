@@ -28,6 +28,14 @@ export async function runIngest(
   const profiles = await ddb.scanAll<UserProfile>(env.PROFILES_TABLE);
   const subscriptions = await ddb.scanAll<PushSubscriptionRecord>(env.SUBSCRIPTIONS_TABLE);
 
+  // sourceId → 固定カテゴリ（管理画面で設定したサイトのみ）
+  const forceCategoryById = new Map<string, string>();
+  if (!isDiscoveryEnabled(env)) {
+    for (const s of await loadAllSources(env)) {
+      if (s.forceCategory) forceCategoryById.set(s.id, s.forceCategory);
+    }
+  }
+
   const newEvents: EventRecord[] = [];
   for (const candidate of candidates) {
     if (newEvents.length >= limit) break;
@@ -40,6 +48,9 @@ export async function runIngest(
     const hydrated = await hydrate(candidate);
     const enriched = await enrichCandidate(env, hydrated);
     if (!enriched) continue; // 一覧/索引ページなどはスキップ
+    // 管理画面で固定カテゴリが設定されたサイトのみ上書き（未設定はAIの判定のまま）
+    const forced = forceCategoryById.get(candidate.sourceId);
+    if (forced) enriched.category = forced;
     const event: EventRecord = {
       ...enriched,
       imageUrl: hydrated.imageUrl,
@@ -113,6 +124,23 @@ function createEventId(sourceId: string, url: string, title: string): Promise<st
   return sha256Hex(`${sourceId}:${url}:${title}`);
 }
 
+// デパート/ショッピングモール等の商業施設ソース。ここに一致したら category を「デパート・モール」に固定する。
+const MALL_HOST_PATTERNS = ["emifull", "aeonmall", "aeon", "izumi", "yumetown", "ario", "parco", "mitsukoshi", "takashimaya", "fuji-crecia", "fujgrand", "youme"];
+
+/** 候補が商業施設(デパート/モール)由来かをホスト名で判定 */
+function isMallSource(candidate: RawEventCandidate): boolean {
+  const hay = `${hostOfUrl(candidate.sourceUrl)} ${hostOfUrl(candidate.url)}`.toLowerCase();
+  return MALL_HOST_PATTERNS.some((pattern) => hay.includes(pattern));
+}
+
+function hostOfUrl(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return url;
+  }
+}
+
 /** 候補の詳細ページを取得し、本文テキストを snippet に、代表画像を imageUrl に詰める */
 async function hydrate(candidate: RawEventCandidate): Promise<RawEventCandidate> {
   const { text, imageUrl } = await fetchPageData(candidate.url);
@@ -128,15 +156,25 @@ async function hydrate(candidate: RawEventCandidate): Promise<RawEventCandidate>
  * テーブル未作成でもスクレイピング＋Bedrockの動きを確認できる。
  */
 export async function previewIngest(env: Env, limit: number): Promise<{ count: number; events: Array<Omit<EventRecord, "eventId" | "eventType" | "createdAt">> }> {
+  const allSources = isDiscoveryEnabled(env) ? [] : await loadAllSources(env);
+  const forceCategoryById = new Map<string, string>();
+  for (const s of allSources) {
+    if (s.forceCategory) forceCategoryById.set(s.id, s.forceCategory);
+  }
+
   const candidates = isDiscoveryEnabled(env)
     ? await discoverCandidates(env)
-    : await fetchCandidates(await loadAllSources(env));
+    : await fetchCandidates(allSources);
 
   const targets = candidates.slice(0, limit);
   const events = [];
   for (const candidate of targets) {
     const enriched = await enrichCandidate(env, await hydrate(candidate));
-    if (enriched) events.push(enriched);
+    if (enriched) {
+      const forced = forceCategoryById.get(candidate.sourceId);
+      if (forced) enriched.category = forced;
+      events.push(enriched);
+    }
   }
   return { count: candidates.length, events };
 }

@@ -5,6 +5,7 @@ export type EventSourceConfig = {
   area: string;
   type: "html" | "rss";
   enabled?: boolean;
+  forceCategory?: string; // 設定するとこのサイトのイベントは全てこのカテゴリに固定
 };
 
 export type UserProfile = {

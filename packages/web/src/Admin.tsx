@@ -1,6 +1,8 @@
 import { Link2, LogIn, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
-import { addSource, clearEvents, deleteSource, getToken, listSources, runIngest, setSourceEnabled, setToken, type Source } from "./adminApi";
+import { addSource, clearEvents, deleteSource, getToken, listSources, runIngest, setSourceCategory, setSourceEnabled, setToken, type Source } from "./adminApi";
+
+const CATEGORIES = ["祭り・伝統", "音楽・ライブ", "スポーツ", "自然・アウトドア", "アート・展示", "グルメ・マルシェ", "ワークショップ", "文化・講演", "デパート・モール", "その他"];
 
 export function Admin() {
   const [token, setTokenState] = useState(getToken());
@@ -66,6 +68,31 @@ export function Admin() {
       const result = await clearEvents();
       setStatus(`${result.deleted}件のイベントを削除しました。`);
     });
+  }
+
+  async function handleCategoryChange(source: Source, forceCategory: string) {
+    const prev = source.forceCategory;
+    setSources((current) => current.map((s) => (s.id === source.id ? { ...s, forceCategory: forceCategory || undefined } : s)));
+    try {
+      await setSourceCategory(source.id, forceCategory);
+      setStatus(forceCategory ? `「${source.name}」のカテゴリを「${forceCategory}」に固定しました。` : `「${source.name}」のカテゴリ固定を解除しました。`);
+    } catch (error) {
+      setSources((current) => current.map((s) => (s.id === source.id ? { ...s, forceCategory: prev } : s)));
+      setStatus(error instanceof Error ? error.message : "更新に失敗しました。");
+    }
+  }
+
+  async function handleIngestOne(source: Source) {
+    setIsBusy(true);
+    setStatus(`「${source.name}」を収集中…（時間がかかる場合があります）`);
+    try {
+      const result = await runIngest(source.id);
+      setStatus(`「${source.name}」収集完了: ${result.saved}件を新規/更新（候補${result.candidates}件）。`);
+    } catch (error) {
+      setStatus(`「${source.name}」の収集でエラー: ${error instanceof Error ? error.message : "失敗"}`);
+    } finally {
+      setIsBusy(false);
+    }
   }
 
   async function handleIngest() {
@@ -192,7 +219,21 @@ export function Admin() {
                   <span className="sourceName">{source.name}</span>
                   <a href={source.url} target="_blank" rel="noreferrer">{source.url}</a>
                   <span className="sourceTag">{source.area || "エリア自動判定"} / {source.type.toUpperCase()}</span>
+                  <label className="sourceCategory">
+                    カテゴリ固定:
+                    <select
+                      value={source.forceCategory ?? ""}
+                      onChange={(e) => void handleCategoryChange(source, e.target.value)}
+                      disabled={isBusy}
+                    >
+                      <option value="">AI自動判定</option>
+                      {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                  </label>
                 </div>
+                <button className="iconButton" type="button" title="このサイトだけ収集" onClick={() => void handleIngestOne(source)} disabled={isBusy}>
+                  <Sparkles size={18} />
+                </button>
                 <button className="iconButton" type="button" title="削除" onClick={() => void handleDelete(source.id)} disabled={isBusy}>
                   <Trash2 size={18} />
                 </button>

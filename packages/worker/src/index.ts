@@ -11,7 +11,7 @@ import { matchesProfile } from "./matching.js";
 import { buildAiText, fetchPageText } from "./page.js";
 import { setupTables } from "./setup.js";
 import { fetchCandidates } from "./source-fetcher.js";
-import { addSource, deleteSource, listSources, loadAllSources, setSourceEnabled } from "./sources.js";
+import { addSource, deleteSource, listSources, loadAllSources, updateSource } from "./sources.js";
 import type { Env, EventRecord, PushSubscriptionRecord, RawEventCandidate, UserProfile } from "./types.js";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -148,10 +148,10 @@ app.delete("/sources/:id", async (c) => {
   return c.json(await deleteSource(c.env, c.req.param("id")));
 });
 
-// ソースのON/OFF切替
+// ソースの属性更新（ON/OFF・固定カテゴリ）
 app.patch("/sources/:id", async (c) => {
-  const body = await c.req.json<{ enabled?: boolean }>();
-  return c.json({ source: await setSourceEnabled(c.env, c.req.param("id"), body.enabled !== false) });
+  const body = await c.req.json<{ enabled?: boolean; forceCategory?: string }>();
+  return c.json({ source: await updateSource(c.env, c.req.param("id"), body) });
 });
 
 // DB不要の動作確認: 取得→AI要約 の結果だけ返す。?limit=3

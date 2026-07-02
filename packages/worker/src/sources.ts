@@ -35,11 +35,26 @@ export async function addSource(
 
 /** ソースのON/OFFを更新 */
 export async function setSourceEnabled(env: Env, id: string, enabled: boolean): Promise<EventSourceConfig> {
+  return updateSource(env, id, { enabled });
+}
+
+/** ソースの属性(ON/OFF・固定カテゴリ)を更新 */
+export async function updateSource(
+  env: Env,
+  id: string,
+  patch: { enabled?: boolean; forceCategory?: string }
+): Promise<EventSourceConfig> {
   if (!id) throw new Error("id is required");
   const ddb = new DynamoClient(env);
   const existing = await ddb.getItem<EventSourceConfig>(env.SOURCES_TABLE, { id });
   if (!existing) throw new Error("source not found");
-  const updated = { ...existing, enabled };
+  const updated: EventSourceConfig = { ...existing };
+  if (patch.enabled !== undefined) updated.enabled = patch.enabled;
+  if (patch.forceCategory !== undefined) {
+    const value = patch.forceCategory.trim();
+    if (value) updated.forceCategory = value;
+    else delete updated.forceCategory; // 空文字ならクリア（AI自動判定に戻す）
+  }
   await ddb.putItem(env.SOURCES_TABLE, updated);
   return updated;
 }
