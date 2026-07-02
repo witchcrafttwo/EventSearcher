@@ -1,9 +1,9 @@
 import { sha256Hex } from "./crypto.js";
 import { DynamoClient } from "./dynamo.js";
-import fileSources from "../config/event-sources.json";
+import { defaultSources, type DefaultSource } from "./default-sources.js";
 import type { Env, EventSourceConfig } from "./types.js";
 
-type FileSource = { id?: string; name?: string; url: string; area?: string; type?: string; enabled?: boolean };
+type FileSource = DefaultSource;
 
 /** DynamoDBに保存された情報源URLの管理 */
 
@@ -53,7 +53,7 @@ export async function deleteSource(env: Env, id: string): Promise<{ ok: true }> 
 
 /** ingestが使う最終的な情報源: 設定ファイル + DB保存分 + 環境変数(EVENT_SOURCES_JSON)をマージ */
 export async function loadAllSources(env: Env): Promise<EventSourceConfig[]> {
-  const fromFile = await normalizeFileSources(fileSources as FileSource[]);
+  const fromFile = await normalizeFileSources(defaultSources as FileSource[]);
   const dbSources = await listSources(env).catch(() => [] as EventSourceConfig[]);
   const envSources = parseEnvSources(env.EVENT_SOURCES_JSON ?? "[]");
 
