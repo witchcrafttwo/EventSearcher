@@ -2,7 +2,6 @@ import { sha256Hex } from "./crypto.js";
 import { discoverCandidates, isDiscoveryEnabled } from "./discovery.js";
 import { DynamoClient } from "./dynamo.js";
 import { enrichCandidate } from "./event-ai.js";
-import { matchesProfile } from "./matching.js";
 import { buildAiText, fetchPageData } from "./page.js";
 import { fetchCandidates } from "./source-fetcher.js";
 import { loadAllSources, recordIngestResult } from "./sources.js";
@@ -135,19 +134,66 @@ async function notifyMatches(
   profiles: UserProfile[],
   subscriptions: PushSubscriptionRecord[]
 ): Promise<number> {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || events.length === 0) return 0;
+  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || events.length === 0 || subscriptions.length === 0) return 0;
 
-  // TODO: Web Push 送信。Node依存の `web-push` は Workers で動かないため、
-  // Web Crypto ベースの実装（例: @block65/webcrypto-web-push）に差し替える。
-  // マッチ判定までは行い、送信件数は実装後に返す。
-  let matchedSubscriptions = 0;
-  for (const profile of profiles) {
-    const matched = events.some((event) => matchesProfile(event, profile));
-    if (!matched) continue;
-    matchedSubscriptions += subscriptions.filter((sub) => sub.profileId === profile.profileId).length;
+  // web-push は Node ライブラリ。変数指定の動的importにして、Node(Vercel)以外(wrangler等)の
+  // バンドル/実行時に巻き込まれないようにする（未導入・非対応環境では送信をスキップ）。
+  let webpush: any;
+  try {
+    const moduleName = "web-push";
+    webpush = (await import(moduleName)).default ?? (await import(moduleName));
+    webpush.setVapidDetails(
+      env.VAPID_SUBJECT || "mailto:noreply@example.com",
+      env.VAPID_PUBLIC_KEY,
+      env.VAPID_PRIVATE_KEY
+    );
+  } catch {
+    return 0; // web-push が使えない環境では送信しない
   }
-  void matchedSubscriptions; // 送信実装までは未使用
-  return 0;
+
+  const ddb = new DynamoClient(env);
+  const profileById = new Map(profiles.map((p) => [p.profileId, p]));
+  let sent = 0;
+  for (const sub of subscriptions) {
+    const profile = profileById.get(sub.profileId);
+    const matched = events.filter((event) => matchesForNotification(event, profile));
+    if (matched.length === 0) continue;
+    const first = matched[0];
+    const payload = JSON.stringify({
+      title: "えひめイベントナビ",
+      body: matched.length === 1 ? first.title : `「${first.title}」など新着イベント${matched.length}件`,
+      url: "/"
+    });
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.subscription.endpoint, keys: sub.subscription.keys },
+        payload
+      );
+      sent++;
+    } catch (error: any) {
+      // 404/410 は購読が失効しているので削除（掃除）
+      const status = error?.statusCode;
+      if (status === 404 || status === 410) {
+        await ddb
+          .deleteItem(env.SUBSCRIPTIONS_TABLE, { profileId: sub.profileId, endpointHash: sub.endpointHash })
+          .catch(() => undefined);
+      }
+    }
+  }
+  return sent;
+}
+
+/** 通知用のマッチ判定: エリア（部分一致）＋カテゴリ（選択したものに含まれるか）。未設定は全件対象。 */
+function matchesForNotification(event: EventRecord, profile?: UserProfile): boolean {
+  if (!profile) return true;
+  const area = (profile.area ?? "").trim();
+  const eventArea = (event.area ?? "").trim();
+  if (area && eventArea && !(eventArea.includes(area) || area.includes(eventArea))) return false;
+  const categories = profile.interests ?? [];
+  if (categories.length > 0) {
+    if (!event.category || !categories.includes(event.category)) return false;
+  }
+  return true;
 }
 
 function createEventId(sourceId: string, url: string, title: string): Promise<string> {

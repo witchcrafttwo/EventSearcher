@@ -430,3 +430,13 @@
   color: #fff;
   font-weight: 700;
 }
+
+.notifyStatus {
+  margin: 8px 2px 0;
+  font-size: 13px;
+  color: #0f766e;
+  background: #f0fdfa;
+  border: 1px solid #99f6e4;
+  border-radius: 8px;
+  padding: 8px 10px;
+}

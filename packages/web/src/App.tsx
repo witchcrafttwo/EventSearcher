@@ -1,6 +1,7 @@
-import { Bookmark, BookmarkCheck, CalendarDays, MapPin, Search, Sparkles } from "lucide-react";
+import { Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, MapPin, Search, Sparkles } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { fetchAreas, hasApiConfig, searchEvents, type EventItem } from "./api";
+import { enablePush, isPushSupported, notificationPermission } from "./push";
 
 // 愛媛県内20市町
 const EHIME_AREAS = [
@@ -39,6 +40,9 @@ export function App() {
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
   const [view, setView] = useState<ViewKey>("all");
   const [bookmarks, setBookmarks] = useState<Record<string, EventItem>>(() => loadBookmarks());
+  const [notifyBusy, setNotifyBusy] = useState(false);
+  const [notifyMsg, setNotifyMsg] = useState("");
+  const [notifyOn, setNotifyOn] = useState(() => notificationPermission() === "granted");
 
   const apiReady = hasApiConfig();
 
@@ -84,6 +88,20 @@ export function App() {
   function toggleCategory(cat: string) {
     setVisibleCount(PAGE_SIZE);
     setCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
+  }
+
+  async function handleEnableNotify() {
+    setNotifyBusy(true);
+    setNotifyMsg("通知を設定しています…");
+    try {
+      const msg = await enablePush(area, categories);
+      setNotifyMsg(msg);
+      setNotifyOn(notificationPermission() === "granted");
+    } catch (error) {
+      setNotifyMsg(error instanceof Error ? error.message : "通知の設定に失敗しました。");
+    } finally {
+      setNotifyBusy(false);
+    }
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
@@ -174,7 +192,20 @@ export function App() {
               <Search size={16} /> 検索
             </button>
             <button className="ghostButton" type="button" onClick={handleReset} disabled={isBusy}>リセット</button>
+            {isPushSupported() && (
+              <button
+                className="ghostButton"
+                type="button"
+                onClick={() => void handleEnableNotify()}
+                disabled={notifyBusy}
+                title="今の地域・カテゴリ条件で新着イベントを通知します"
+              >
+                {notifyOn ? <BellRing size={16} /> : <Bell size={16} />}
+                {notifyOn ? "通知を更新" : "新着を通知で受け取る"}
+              </button>
+            )}
           </div>
+          {notifyMsg && <p className="notifyStatus">{notifyMsg}</p>}
         </form>
 
         <div className="listHeader">

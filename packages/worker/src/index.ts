@@ -34,6 +34,9 @@ app.use("/sources/*", adminAuth);
 app.get("/health", (c) => c.json({ ok: true }));
 app.get("/version", (c) => c.json({ version: "readtime-category-v2" }));
 
+// Web Push 用の公開鍵をフロントへ渡す（購読時に applicationServerKey として使用）
+app.get("/vapid-public-key", (c) => c.json({ publicKey: c.env.VAPID_PUBLIC_KEY ?? "" }));
+
 app.post("/profiles", async (c) => {
   const body = await c.req.json<Partial<UserProfile>>();
   return c.json(await upsertProfile(c.env, body));

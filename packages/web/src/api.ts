@@ -72,6 +72,13 @@ export async function savePushSubscription(profileId: string, subscription: Push
   if (!response.ok) throw new Error("通知登録に失敗しました");
 }
 
+export async function getVapidPublicKey(): Promise<string> {
+  const response = await fetch(`${apiPrefix()}/vapid-public-key`);
+  if (!response.ok) return "";
+  const body = (await response.json()) as { publicKey: string };
+  return body.publicKey ?? "";
+}
+
 function apiPrefix(): string {
   return apiBaseUrl ? apiBaseUrl.replace(/\/$/, "") : "";
 }
