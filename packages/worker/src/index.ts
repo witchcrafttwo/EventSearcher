@@ -110,7 +110,8 @@ app.post("/admin/ingest", async (c) => {
   const limitParam = Number(c.req.query("limit"));
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : undefined;
   const sourceId = c.req.query("sourceId") || undefined;
-  return c.json(await runIngest(c.env, { force, limit, sourceId }));
+  // Vercelの60秒制限に収めるため、1回の収集は最大50秒で打ち切る（続きは再実行で処理）
+  return c.json(await runIngest(c.env, { force, limit, sourceId, maxMs: 50000 }));
 });
 
 // eventsテーブルを空にする（再収集前のリセット）

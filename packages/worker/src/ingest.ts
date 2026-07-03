@@ -10,9 +10,10 @@ import type { Env, EventRecord, EventSourceConfig, PushSubscriptionRecord, RawEv
 
 export async function runIngest(
   env: Env,
-  options: { force?: boolean; limit?: number; sourceId?: string } = {}
+  options: { force?: boolean; limit?: number; sourceId?: string; maxMs?: number } = {}
 ): Promise<{ saved: number; notified: number; candidates: number }> {
-  const { force = false, limit = Number.POSITIVE_INFINITY, sourceId } = options;
+  const { force = false, limit = Number.POSITIVE_INFINITY, sourceId, maxMs = Number.POSITIVE_INFINITY } = options;
+  const startedAt = Date.now();
   const ddb = new DynamoClient(env);
 
   // AgentCore Web Search が設定済みなら自動発見、未設定なら登録済みURL(+環境変数)から収集
@@ -39,6 +40,8 @@ export async function runIngest(
   const newEvents: EventRecord[] = [];
   for (const candidate of candidates) {
     if (newEvents.length >= limit) break;
+    // 時間予算を超えたら打ち切る（Vercelの60秒制限対策）。次回の収集で続きを処理する。
+    if (Date.now() - startedAt > maxMs) break;
     const eventId = await createEventId(candidate.sourceId, candidate.url, candidate.title);
     if (!force) {
       const exists = await ddb.getItem<EventRecord>(env.EVENTS_TABLE, { eventId });

@@ -9760,7 +9760,8 @@ __name(hostnameOf, "hostnameOf");
 
 // src/ingest.ts
 async function runIngest(env2, options = {}) {
-  const { force = false, limit = Number.POSITIVE_INFINITY, sourceId } = options;
+  const { force = false, limit = Number.POSITIVE_INFINITY, sourceId, maxMs = Number.POSITIVE_INFINITY } = options;
+  const startedAt = Date.now();
   const ddb = new DynamoClient(env2);
   let candidates;
   if (isDiscoveryEnabled(env2)) {
@@ -9782,6 +9783,8 @@ async function runIngest(env2, options = {}) {
   const newEvents = [];
   for (const candidate of candidates) {
     if (newEvents.length >= limit)
+      break;
+    if (Date.now() - startedAt > maxMs)
       break;
     const eventId = await createEventId(candidate.sourceId, candidate.url, candidate.title);
     if (!force) {
@@ -10015,7 +10018,7 @@ app.post("/admin/ingest", async (c) => {
   const limitParam = Number(c.req.query("limit"));
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : void 0;
   const sourceId = c.req.query("sourceId") || void 0;
-  return c.json(await runIngest(c.env, { force, limit, sourceId }));
+  return c.json(await runIngest(c.env, { force, limit, sourceId, maxMs: 5e4 }));
 });
 app.post("/admin/clear-events", async (c) => {
   return c.json(await clearEvents(c.env));
