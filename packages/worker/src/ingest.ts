@@ -75,12 +75,33 @@ export async function runIngest(
 export async function clearEvents(env: Env): Promise<{ deleted: number }> {
   const ddb = new DynamoClient(env);
   const events = await ddb.scanAll<EventRecord>(env.EVENTS_TABLE);
+  return deleteEventsInBatches(env, ddb, events);
+}
+
+/** 指定サイト（ソース）のイベントだけ削除。sourceId一致 or URLホスト一致で対象判定。 */
+export async function clearEventsForSource(env: Env, source: EventSourceConfig): Promise<{ deleted: number }> {
+  const ddb = new DynamoClient(env);
+  const events = await ddb.scanAll<EventRecord>(env.EVENTS_TABLE);
+  const host = hostOf(source.url);
+  const targets = events.filter((ev) => ev.sourceId === source.id || (host !== "" && hostOf(ev.url) === host));
+  return deleteEventsInBatches(env, ddb, targets);
+}
+
+async function deleteEventsInBatches(env: Env, ddb: DynamoClient, events: EventRecord[]): Promise<{ deleted: number }> {
   const BATCH = 25;
   for (let i = 0; i < events.length; i += BATCH) {
     const slice = events.slice(i, i + BATCH);
     await Promise.all(slice.map((event) => ddb.deleteItem(env.EVENTS_TABLE, { eventId: event.eventId })));
   }
   return { deleted: events.length };
+}
+
+function hostOf(url: string): string {
+  try {
+    return new URL(url).host;
+  } catch {
+    return "";
+  }
 }
 
 /**

@@ -91,8 +91,9 @@ export async function runIngest(sourceId?: string): Promise<{ saved: number; not
   return (await response.json()) as { saved: number; notified: number; candidates: number };
 }
 
-export async function clearEvents(): Promise<{ deleted: number }> {
-  const response = await adminFetch("/admin/clear-events", { method: "POST" });
+export async function clearEvents(sourceId?: string): Promise<{ deleted: number }> {
+  const query = sourceId ? `?sourceId=${encodeURIComponent(sourceId)}` : "";
+  const response = await adminFetch(`/admin/clear-events${query}`, { method: "POST" });
   if (!response.ok) throw new Error("削除に失敗しました");
   return (await response.json()) as { deleted: number };
 }

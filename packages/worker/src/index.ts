@@ -5,7 +5,7 @@ import { sha256Hex } from "./crypto.js";
 import { DynamoClient } from "./dynamo.js";
 import { isDiscoveryEnabled, webSearch } from "./discovery.js";
 import { debugEnrich, enrichCandidate } from "./event-ai.js";
-import { clearEvents, previewIngest, runIngest, runScheduledIngest } from "./ingest.js";
+import { clearEvents, clearEventsForSource, previewIngest, runIngest, runScheduledIngest } from "./ingest.js";
 import { chat } from "./llm.js";
 import { matchesProfile } from "./matching.js";
 import { buildAiText, fetchPageText } from "./page.js";
@@ -114,8 +114,14 @@ app.post("/admin/ingest", async (c) => {
   return c.json(await runIngest(c.env, { force, limit, sourceId, maxMs: 50000 }));
 });
 
-// eventsテーブルを空にする（再収集前のリセット）
+// eventsを削除。?sourceId=X で特定サイトのみ、指定なしで全件。
 app.post("/admin/clear-events", async (c) => {
+  const sourceId = c.req.query("sourceId");
+  if (sourceId) {
+    const source = (await loadAllSources(c.env)).find((s) => s.id === sourceId);
+    if (!source) return c.json({ deleted: 0, message: "source not found" }, 404);
+    return c.json(await clearEventsForSource(c.env, source));
+  }
   return c.json(await clearEvents(c.env));
 });
 

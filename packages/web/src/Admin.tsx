@@ -1,4 +1,4 @@
-import { Link2, LogIn, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
+import { Eraser, Link2, LogIn, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
 import { addSource, clearEvents, deleteSource, getStats, getToken, listSources, runIngest, setSourceCategory, setSourceEnabled, setToken, type Source, type Stats } from "./adminApi";
 
@@ -96,6 +96,15 @@ export function Admin() {
       setSources((current) => current.map((s) => (s.id === source.id ? { ...s, forceCategory: prev } : s)));
       setStatus(error instanceof Error ? error.message : "更新に失敗しました。");
     }
+  }
+
+  async function handleClearOne(source: Source) {
+    if (!window.confirm(`「${source.name}」で収集したイベントを削除します。よろしいですか？（サイト登録は残ります）`)) return;
+    await run(`「${source.name}」のイベントを削除しました。`, async () => {
+      const result = await clearEvents(source.id);
+      setStatus(`「${source.name}」のイベント ${result.deleted}件を削除しました。`);
+      await refreshStats();
+    });
   }
 
   async function handleIngestOne(source: Source) {
@@ -258,7 +267,10 @@ export function Admin() {
                 <button className="iconButton" type="button" title="このサイトだけ収集" onClick={() => void handleIngestOne(source)} disabled={isBusy}>
                   <Sparkles size={18} />
                 </button>
-                <button className="iconButton" type="button" title="削除" onClick={() => void handleDelete(source.id)} disabled={isBusy}>
+                <button className="iconButton" type="button" title="このサイトのイベントを削除（登録は残す）" onClick={() => void handleClearOne(source)} disabled={isBusy}>
+                  <Eraser size={18} />
+                </button>
+                <button className="iconButton" type="button" title="サイト登録を削除" onClick={() => void handleDelete(source.id)} disabled={isBusy}>
                   <Trash2 size={18} />
                 </button>
               </li>
