@@ -589,6 +589,11 @@ export function Admin() {
                                     </div>
                                   ) : (
                                     <>
+                                      {ev.imageUrl && (
+                                        <a href={ev.imageUrl} target="_blank" rel="noreferrer" className="eventThumb" title="画像を開く">
+                                          <img src={ev.imageUrl} alt="" loading="lazy" onError={(e) => { (e.currentTarget.parentElement as HTMLElement).style.display = "none"; }} />
+                                        </a>
+                                      )}
                                       <div className="eventInfo">
                                         <span className="eventTitle">{ev.title}</span>
                                         <span className="eventMeta">

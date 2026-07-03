@@ -138,6 +138,7 @@ export type SourceEvent = {
   eventEndDate?: string;
   publishedAt?: string;
   createdAt?: string;
+  imageUrl?: string;
 };
 
 export async function listSourceEvents(sourceId: string): Promise<SourceEvent[]> {

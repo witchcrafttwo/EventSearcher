@@ -509,6 +509,24 @@ button:disabled {
   flex-shrink: 0;
 }
 
+.eventThumb {
+  flex-shrink: 0;
+  display: block;
+  width: 56px;
+  height: 56px;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+  background: #f1f5f9;
+}
+
+.eventThumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
 .statsBlock {
   display: grid;
   gap: 6px;
