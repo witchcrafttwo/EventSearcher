@@ -287,15 +287,17 @@ function parseHtml(source: EventSourceConfig, html: string): RawEventCandidate[]
     if (PATH_DENY.some((seg) => path.toLowerCase().includes(seg))) continue;
     if (isYearArchivePath(path)) continue; // 年アーカイブ一覧URL（例: /2011/ , /2026/03/）。記事(/2026/07/075930.html)は残す
     if (seen.has(url)) continue;
-    seen.add(url);
 
     // テキストが短い場合はURLスラッグから仮タイトルを作る（実タイトルはAIが付け直す）
+    // ※同じURLを指す「画像リンク(テキスト無)」と「テキストリンク」が並ぶサイトがあるため、
+    //   タイトルが確定してから seen に登録する（先に登録すると後続のテキストリンクが弾かれる）。
     let title = rawTitle.slice(0, 120);
     if (title.length < 5) {
       const slug = slugTitle(path);
-      if (!slug) continue; // スラッグからも作れなければ除外
+      if (!slug) continue; // スラッグからも作れなければ除外（seen には登録しない）
       title = slug;
     }
+    seen.add(url);
     const hasEventWord = EVENT_WORDS.some((word) => rawTitle.includes(word));
 
     scored.push({
