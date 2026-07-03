@@ -8,7 +8,7 @@ import { debugEnrich, enrichCandidate } from "./event-ai.js";
 import { clearEvents, clearEventsForSource, previewIngest, runIngest, runScheduledIngest } from "./ingest.js";
 import { chat } from "./llm.js";
 import { matchesProfile } from "./matching.js";
-import { buildAiText, fetchPageText } from "./page.js";
+import { buildAiText, fetchPageData, fetchPageText } from "./page.js";
 import { setupTables } from "./setup.js";
 import { fetchCandidates } from "./source-fetcher.js";
 import { addSource, deleteSource, listSources, loadAllSources, updateSource } from "./sources.js";
@@ -130,6 +130,114 @@ app.post("/admin/clear-events", async (c) => {
   return c.json(await clearEvents(c.env));
 });
 
+// 指定ソースが収集したイベント一覧（管理画面の確認用）。sourceId一致 or URLホスト一致で対象判定。
+app.get("/admin/source-events", async (c) => {
+  const sourceId = c.req.query("sourceId");
+  if (!sourceId) return c.json({ message: "sourceId query required" }, 400);
+  const source = (await loadAllSources(c.env)).find((s) => s.id === sourceId);
+  if (!source) return c.json({ events: [], message: "source not found" }, 404);
+  const ddb = new DynamoClient(c.env);
+  const host = hostOf(source.url);
+  const all = await ddb.scanAll<EventRecord>(c.env.EVENTS_TABLE);
+  const events = all
+    .filter((e) => e.eventType === "event")
+    .filter((e) => e.sourceId === source.id || (host !== "" && hostOf(e.url) === host))
+    .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? ""));
+  return c.json({ events });
+});
+
+// 単一イベントの削除（管理画面の個別削除用）
+app.delete("/admin/events/:eventId", async (c) => {
+  const eventId = c.req.param("eventId");
+  const ddb = new DynamoClient(c.env);
+  await ddb.deleteItem(c.env.EVENTS_TABLE, { eventId });
+  return c.json({ ok: true, deleted: eventId });
+});
+
+// 単一イベントの手動編集（AIの誤りを直す用）。渡されたフィールドだけ上書きする。
+app.patch("/admin/events/:eventId", async (c) => {
+  const eventId = c.req.param("eventId");
+  const body = await c.req.json<Partial<Pick<EventRecord, "title" | "summary" | "category" | "area" | "eventDate" | "eventEndDate">>>();
+  const ddb = new DynamoClient(c.env);
+  const existing = await ddb.getItem<EventRecord>(c.env.EVENTS_TABLE, { eventId });
+  if (!existing) return c.json({ message: "event not found" }, 404);
+  const updated: EventRecord = { ...existing };
+  for (const key of ["title", "summary", "category", "area", "eventDate", "eventEndDate"] as const) {
+    const value = body[key];
+    if (value === undefined) continue;
+    const trimmed = String(value).trim();
+    if (trimmed) (updated[key] as string) = trimmed;
+    else if (key === "eventDate" || key === "eventEndDate" || key === "category") delete updated[key]; // 任意項目は空でクリア可
+  }
+  await ddb.putItem(c.env.EVENTS_TABLE, updated);
+  return c.json({ event: updated });
+});
+
+// 単一イベントをAIで要約し直す（元ページを取得して再enrich）。誤要約の修正用。
+app.post("/admin/events/:eventId/reenrich", async (c) => {
+  const eventId = c.req.param("eventId");
+  const ddb = new DynamoClient(c.env);
+  const existing = await ddb.getItem<EventRecord>(c.env.EVENTS_TABLE, { eventId });
+  if (!existing) return c.json({ message: "event not found" }, 404);
+  const { text, imageUrl } = await fetchPageData(existing.url);
+  const candidate: RawEventCandidate = {
+    sourceId: existing.sourceId,
+    sourceName: existing.sourceName,
+    sourceUrl: existing.url,
+    title: existing.title,
+    url: existing.url,
+    area: existing.area,
+    snippet: text ? buildAiText(text) : existing.summary,
+    publishedAt: existing.publishedAt,
+    imageUrl: imageUrl ?? existing.imageUrl
+  };
+  const enriched = await enrichCandidate(c.env, candidate);
+  if (!enriched) return c.json({ message: "AI要約に失敗しました" }, 422);
+  const updated: EventRecord = { ...existing, ...enriched, eventId, eventType: "event", imageUrl: imageUrl ?? existing.imageUrl };
+  await ddb.putItem(c.env.EVENTS_TABLE, updated);
+  return c.json({ event: updated });
+});
+
+// 終了済みイベントの確認（プレビュー）。?days=0 なら「今日より前」。cutoff より前の終了日のものを数える。
+app.get("/admin/expired-events", async (c) => {
+  const days = Math.max(Number(c.req.query("days")) || 0, 0);
+  const ddb = new DynamoClient(c.env);
+  const events = await ddb.scanAll<EventRecord>(c.env.EVENTS_TABLE);
+  const expired = events.filter((e) => e.eventType === "event").filter((e) => isExpired(e, days));
+  return c.json({
+    count: expired.length,
+    total: events.length,
+    days,
+    sample: expired.slice(0, 20).map((e) => ({ eventId: e.eventId, title: e.title, eventDate: e.eventDate, eventEndDate: e.eventEndDate }))
+  });
+});
+
+// 終了済みイベントの一括削除。日付が取れないものは安全のため削除しない。
+app.post("/admin/clear-expired", async (c) => {
+  const days = Math.max(Number(c.req.query("days")) || 0, 0);
+  const ddb = new DynamoClient(c.env);
+  const events = await ddb.scanAll<EventRecord>(c.env.EVENTS_TABLE);
+  const expired = events.filter((e) => e.eventType === "event").filter((e) => isExpired(e, days));
+  const BATCH = 25;
+  for (let i = 0; i < expired.length; i += BATCH) {
+    await Promise.all(expired.slice(i, i + BATCH).map((e) => ddb.deleteItem(c.env.EVENTS_TABLE, { eventId: e.eventId })));
+  }
+  return c.json({ deleted: expired.length });
+});
+
+// サイトの試し取得（dry-run）。AIを使わず候補URL/タイトルだけ返すので速い。保存しない。
+app.get("/admin/preview-source", async (c) => {
+  const sourceId = c.req.query("sourceId");
+  if (!sourceId) return c.json({ message: "sourceId query required" }, 400);
+  const source = (await loadAllSources(c.env)).find((s) => s.id === sourceId);
+  if (!source) return c.json({ found: 0, candidates: [], message: "source not found" }, 404);
+  const candidates = await fetchCandidates([source]);
+  return c.json({
+    found: candidates.length,
+    candidates: candidates.slice(0, 60).map((x) => ({ title: x.title, url: x.url }))
+  });
+});
+
 // Vercel Cron 用の定期収集トリガ（GET）。CRON_SECRET を設定した場合は Bearer 一致を要求。
 // Vercel は CRON_SECRET を設定すると Authorization: Bearer <CRON_SECRET> を自動付与する。
 app.get("/cron/ingest", async (c) => {
@@ -170,13 +278,19 @@ app.get("/admin/stats", async (c) => {
   }
   const ids = new Set(sources.map((s) => s.id));
   const counts: Record<string, number> = {};
+  const byCategory: Record<string, number> = {};
+  const byArea: Record<string, number> = {};
   let unmatched = 0;
   for (const ev of events) {
     const id = ids.has(ev.sourceId) ? ev.sourceId : hostToId.get(hostOf(ev.url));
     if (id) counts[id] = (counts[id] ?? 0) + 1;
     else unmatched++;
+    const cat = (ev.category ?? "").trim() || "未分類";
+    byCategory[cat] = (byCategory[cat] ?? 0) + 1;
+    const area = (ev.area ?? "").trim() || "エリア不明";
+    byArea[area] = (byArea[area] ?? 0) + 1;
   }
-  return c.json({ total: events.length, counts, unmatched });
+  return c.json({ total: events.length, counts, unmatched, byCategory, byArea });
 });
 
 app.post("/sources", async (c) => {
@@ -365,6 +479,21 @@ function hostOf(url: string): string {
   } catch {
     return "";
   }
+}
+
+/**
+ * イベントが「終了済み」か判定する。終了日(なければ開催日)が、今日から days 日前より前なら終了。
+ * 日付が無い/パースできないものは false（＝安全のため削除対象にしない）。
+ */
+function isExpired(event: EventRecord, days: number): boolean {
+  const raw = event.eventEndDate ?? event.eventDate;
+  if (!raw) return false;
+  const end = new Date(raw);
+  if (Number.isNaN(end.getTime())) return false;
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+  cutoff.setDate(cutoff.getDate() - days);
+  return end < cutoff;
 }
 
 async function hydrateForDebug(candidate: RawEventCandidate): Promise<RawEventCandidate> {

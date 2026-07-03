@@ -10,6 +10,9 @@ export type Source = {
   forceCategory?: string;
   showImages?: boolean;
   note?: string;
+  lastIngestAt?: string;
+  lastCandidates?: number;
+  lastSaved?: number;
 };
 
 const TOKEN_KEY = "events-ai-admin-token";
@@ -42,7 +45,13 @@ export async function listSources(): Promise<Source[]> {
   return body.sources;
 }
 
-export type Stats = { total: number; counts: Record<string, number>; unmatched: number };
+export type Stats = {
+  total: number;
+  counts: Record<string, number>;
+  unmatched: number;
+  byCategory?: Record<string, number>;
+  byArea?: Record<string, number>;
+};
 
 export async function getStats(): Promise<Stats> {
   const response = await adminFetch("/admin/stats");
@@ -116,4 +125,76 @@ export async function clearEvents(sourceId?: string): Promise<{ deleted: number 
   const response = await adminFetch(`/admin/clear-events${query}`, { method: "POST" });
   if (!response.ok) throw new Error("削除に失敗しました");
   return (await response.json()) as { deleted: number };
+}
+
+export type SourceEvent = {
+  eventId: string;
+  title: string;
+  url: string;
+  area?: string;
+  category?: string;
+  summary?: string;
+  eventDate?: string;
+  eventEndDate?: string;
+  publishedAt?: string;
+  createdAt?: string;
+};
+
+export async function listSourceEvents(sourceId: string): Promise<SourceEvent[]> {
+  const response = await adminFetch(`/admin/source-events?sourceId=${encodeURIComponent(sourceId)}`);
+  if (!response.ok) throw new Error("収集データを取得できませんでした");
+  return ((await response.json()) as { events: SourceEvent[] }).events;
+}
+
+export async function deleteEvent(eventId: string): Promise<void> {
+  const response = await adminFetch(`/admin/events/${encodeURIComponent(eventId)}`, { method: "DELETE" });
+  if (!response.ok) throw new Error("イベントの削除に失敗しました");
+}
+
+export type EventEditPatch = Partial<Pick<SourceEvent, "title" | "summary" | "category" | "area" | "eventDate" | "eventEndDate">>;
+
+export async function editEvent(eventId: string, patch: EventEditPatch): Promise<SourceEvent> {
+  const response = await adminFetch(`/admin/events/${encodeURIComponent(eventId)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(patch)
+  });
+  if (!response.ok) throw new Error("イベントの更新に失敗しました");
+  return ((await response.json()) as { event: SourceEvent }).event;
+}
+
+export async function reenrichEvent(eventId: string): Promise<SourceEvent> {
+  const response = await adminFetch(`/admin/events/${encodeURIComponent(eventId)}/reenrich`, { method: "POST" });
+  if (!response.ok) {
+    const body = (await response.json().catch(() => ({}))) as { message?: string };
+    throw new Error(body.message ?? "AI要約のやり直しに失敗しました");
+  }
+  return ((await response.json()) as { event: SourceEvent }).event;
+}
+
+export type ExpiredPreview = {
+  count: number;
+  total: number;
+  days: number;
+  sample: Array<{ eventId: string; title: string; eventDate?: string; eventEndDate?: string }>;
+};
+
+export async function getExpired(days: number): Promise<ExpiredPreview> {
+  const response = await adminFetch(`/admin/expired-events?days=${days}`);
+  if (!response.ok) throw new Error("終了済みイベントの確認に失敗しました");
+  return (await response.json()) as ExpiredPreview;
+}
+
+export async function clearExpired(days: number): Promise<{ deleted: number }> {
+  const response = await adminFetch(`/admin/clear-expired?days=${days}`, { method: "POST" });
+  if (!response.ok) throw new Error("終了済みイベントの削除に失敗しました");
+  return (await response.json()) as { deleted: number };
+}
+
+export type PreviewCandidate = { title: string; url: string };
+
+export async function previewSource(sourceId: string): Promise<{ found: number; candidates: PreviewCandidate[] }> {
+  const response = await adminFetch(`/admin/preview-source?sourceId=${encodeURIComponent(sourceId)}`);
+  if (!response.ok) throw new Error("試し取得に失敗しました");
+  return (await response.json()) as { found: number; candidates: PreviewCandidate[] };
 }

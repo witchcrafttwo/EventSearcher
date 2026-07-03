@@ -5,7 +5,7 @@ import { enrichCandidate } from "./event-ai.js";
 import { matchesProfile } from "./matching.js";
 import { buildAiText, fetchPageData } from "./page.js";
 import { fetchCandidates } from "./source-fetcher.js";
-import { loadAllSources } from "./sources.js";
+import { loadAllSources, recordIngestResult } from "./sources.js";
 import type { Env, EventRecord, EventSourceConfig, PushSubscriptionRecord, RawEventCandidate, UserProfile } from "./types.js";
 
 export async function runIngest(
@@ -68,6 +68,10 @@ export async function runIngest(
   }
 
   const notified = await notifyMatches(env, newEvents, profiles, subscriptions);
+  // ヘルスチェック記録（サイト単位の収集時のみ。候補0が続くとスクレイパー故障の目印になる）
+  if (sourceId && !isDiscoveryEnabled(env)) {
+    await recordIngestResult(env, sourceId, { candidates: candidates.length, saved: newEvents.length }).catch(() => undefined);
+  }
   return { saved: newEvents.length, notified, candidates: candidates.length };
 }
 

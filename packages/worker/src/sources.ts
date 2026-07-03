@@ -70,6 +70,29 @@ export async function updateSource(
   return updated;
 }
 
+/** 収集結果を記録（ヘルスチェック用）。DB未登録ソースは統合結果からupsertする。 */
+export async function recordIngestResult(
+  env: Env,
+  id: string,
+  result: { candidates: number; saved: number }
+): Promise<void> {
+  if (!id) return;
+  const ddb = new DynamoClient(env);
+  let existing = await ddb.getItem<EventSourceConfig>(env.SOURCES_TABLE, { id });
+  if (!existing) {
+    const all = await loadAllSources(env);
+    existing = all.find((s) => s.id === id);
+    if (!existing) return; // 記録先が無ければ何もしない
+  }
+  const updated: EventSourceConfig = {
+    ...existing,
+    lastIngestAt: new Date().toISOString(),
+    lastCandidates: result.candidates,
+    lastSaved: result.saved
+  };
+  await ddb.putItem(env.SOURCES_TABLE, updated);
+}
+
 export async function deleteSource(env: Env, id: string): Promise<{ ok: true }> {
   if (!id) throw new Error("id is required");
   const ddb = new DynamoClient(env);
