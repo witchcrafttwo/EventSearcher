@@ -6,6 +6,8 @@ export type EventSourceConfig = {
   type: "html" | "rss";
   enabled?: boolean;
   forceCategory?: string; // 設定するとこのサイトのイベントは全てこのカテゴリに固定
+  showImages?: boolean; // false にすると、このサイトのイベント画像を表示しない（著作権対策）。未設定は表示。
+  note?: string; // 管理者用メモ（規約の要点など）。ユーザー画面には表示しない。
 };
 
 export type UserProfile = {

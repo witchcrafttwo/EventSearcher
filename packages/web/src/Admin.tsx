@@ -1,6 +1,6 @@
 import { Eraser, Link2, LogIn, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
-import { addSource, clearEvents, deleteSource, getStats, getToken, listSources, runIngest, setSourceCategory, setSourceEnabled, setToken, type Source, type Stats } from "./adminApi";
+import { addSource, clearEvents, deleteSource, getStats, getToken, listSources, runIngest, setSourceCategory, setSourceEnabled, setSourceImages, setSourceNote, setToken, type Source, type Stats } from "./adminApi";
 
 const CATEGORIES = ["祭り・伝統", "音楽・ライブ", "スポーツ", "自然・アウトドア", "アート・展示", "グルメ・マルシェ", "ワークショップ", "文化・講演", "デパート・モール", "その他"];
 
@@ -95,6 +95,31 @@ export function Admin() {
     } catch (error) {
       setSources((current) => current.map((s) => (s.id === source.id ? { ...s, forceCategory: prev } : s)));
       setStatus(error instanceof Error ? error.message : "更新に失敗しました。");
+    }
+  }
+
+  async function handleToggleImages(source: Source) {
+    const next = source.showImages === false; // 現在OFFなら次はON
+    setSources((current) => current.map((s) => (s.id === source.id ? { ...s, showImages: next } : s)));
+    try {
+      await setSourceImages(source.id, next);
+      setStatus(`「${source.name}」の画像表示を${next ? "ON" : "OFF"}にしました（表示に即反映）。`);
+    } catch (error) {
+      setSources((current) => current.map((s) => (s.id === source.id ? { ...s, showImages: !next } : s)));
+      setStatus(error instanceof Error ? error.message : "更新に失敗しました。");
+    }
+  }
+
+  async function handleNoteSave(source: Source, note: string) {
+    if ((source.note ?? "") === note.trim()) return; // 変更なしなら何もしない
+    const prev = source.note;
+    setSources((current) => current.map((s) => (s.id === source.id ? { ...s, note: note.trim() || undefined } : s)));
+    try {
+      await setSourceNote(source.id, note);
+      setStatus(`「${source.name}」のメモを保存しました。`);
+    } catch (error) {
+      setSources((current) => current.map((s) => (s.id === source.id ? { ...s, note: prev } : s)));
+      setStatus(error instanceof Error ? error.message : "メモの保存に失敗しました。");
     }
   }
 
@@ -263,6 +288,23 @@ export function Admin() {
                       {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
                     </select>
                   </label>
+                  <label className="sourceImageToggle" title="このサイトのイベント画像を表示するか（著作権対策でOFFにできます）">
+                    <input
+                      type="checkbox"
+                      checked={source.showImages !== false}
+                      onChange={() => void handleToggleImages(source)}
+                      disabled={isBusy}
+                    />
+                    <span>画像を表示{source.showImages === false ? "（OFF）" : ""}</span>
+                  </label>
+                  <textarea
+                    className="sourceNote"
+                    defaultValue={source.note ?? ""}
+                    placeholder="メモ（規約の要点・許諾状況など）"
+                    rows={2}
+                    onBlur={(e) => void handleNoteSave(source, e.target.value)}
+                    disabled={isBusy}
+                  />
                 </div>
                 <button className="iconButton" type="button" title="このサイトだけ収集" onClick={() => void handleIngestOne(source)} disabled={isBusy}>
                   <Sparkles size={18} />

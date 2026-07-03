@@ -8,6 +8,8 @@ export type Source = {
   type: "html" | "rss";
   enabled?: boolean;
   forceCategory?: string;
+  showImages?: boolean;
+  note?: string;
 };
 
 const TOKEN_KEY = "events-ai-admin-token";
@@ -82,6 +84,24 @@ export async function setSourceCategory(id: string, forceCategory: string): Prom
     body: JSON.stringify({ forceCategory })
   });
   if (!response.ok) throw new Error("カテゴリ設定の更新に失敗しました");
+}
+
+export async function setSourceImages(id: string, showImages: boolean): Promise<void> {
+  const response = await adminFetch(`/sources/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ showImages })
+  });
+  if (!response.ok) throw new Error("画像表示設定の更新に失敗しました");
+}
+
+export async function setSourceNote(id: string, note: string): Promise<void> {
+  const response = await adminFetch(`/sources/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ note })
+  });
+  if (!response.ok) throw new Error("メモの更新に失敗しました");
 }
 
 export async function runIngest(sourceId?: string): Promise<{ saved: number; notified: number; candidates: number }> {

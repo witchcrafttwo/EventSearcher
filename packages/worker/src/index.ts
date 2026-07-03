@@ -54,6 +54,7 @@ app.get("/events", async (c) => {
   const allSources = await loadAllSources(c.env);
   const disabled = buildDisabledMatcherFrom(allSources);
   const applyForced = buildForcedCategory(allSources);
+  const imagesHidden = buildImageHiddenMatcher(allSources);
   const filtered = events
     .filter((e) => e.eventType === "event")
     .filter((e) => !disabled(e)) // OFFのサイトは表示しない
@@ -64,7 +65,13 @@ app.get("/events", async (c) => {
     })
     .map((e) => {
       const forced = applyForced(e); // 固定カテゴリのサイトは表示時に上書き
-      return forced ? { ...e, category: forced } : e;
+      const withCategory = forced ? { ...e, category: forced } : e;
+      // 画像OFFのサイトは表示時に画像URLを落とす（著作権対策・DBは書き換えない）
+      if (imagesHidden(e)) {
+        const { imageUrl, ...rest } = withCategory;
+        return rest as EventRecord;
+      }
+      return withCategory;
     })
     .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "")); // 新しい順
   return c.json({ events: filtered });
@@ -183,7 +190,7 @@ app.delete("/sources/:id", async (c) => {
 
 // ソースの属性更新（ON/OFF・固定カテゴリ）。固定カテゴリは表示時に動的適用するのでここは保存のみ（高速）。
 app.patch("/sources/:id", async (c) => {
-  const body = await c.req.json<{ enabled?: boolean; forceCategory?: string }>();
+  const body = await c.req.json<{ enabled?: boolean; forceCategory?: string; showImages?: boolean; note?: string }>();
   const source = await updateSource(c.env, c.req.param("id"), body);
   return c.json({ source });
 });
@@ -333,6 +340,14 @@ function buildDisabledMatcherFrom(sources: EventSourceConfig[]): (event: EventRe
   const disabled = sources.filter((s) => s.enabled === false);
   const ids = new Set(disabled.map((s) => s.id));
   const hosts = new Set(disabled.map((s) => hostOf(s.url)).filter(Boolean));
+  return (event) => ids.has(event.sourceId) || hosts.has(hostOf(event.url));
+}
+
+/** 画像非表示(showImages===false)のサイトに一致するか判定（表示時に画像を落とす用） */
+function buildImageHiddenMatcher(sources: EventSourceConfig[]): (event: EventRecord) => boolean {
+  const hidden = sources.filter((s) => s.showImages === false);
+  const ids = new Set(hidden.map((s) => s.id));
+  const hosts = new Set(hidden.map((s) => hostOf(s.url)).filter(Boolean));
   return (event) => ids.has(event.sourceId) || hosts.has(hostOf(event.url));
 }
 

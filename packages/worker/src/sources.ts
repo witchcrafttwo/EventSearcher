@@ -42,7 +42,7 @@ export async function setSourceEnabled(env: Env, id: string, enabled: boolean): 
 export async function updateSource(
   env: Env,
   id: string,
-  patch: { enabled?: boolean; forceCategory?: string }
+  patch: { enabled?: boolean; forceCategory?: string; showImages?: boolean; note?: string }
 ): Promise<EventSourceConfig> {
   if (!id) throw new Error("id is required");
   const ddb = new DynamoClient(env);
@@ -59,6 +59,12 @@ export async function updateSource(
     const value = patch.forceCategory.trim();
     if (value) updated.forceCategory = value;
     else delete updated.forceCategory; // 空文字ならクリア（AI自動判定に戻す）
+  }
+  if (patch.showImages !== undefined) updated.showImages = patch.showImages;
+  if (patch.note !== undefined) {
+    const value = patch.note.trim();
+    if (value) updated.note = value;
+    else delete updated.note; // 空文字ならクリア
   }
   await ddb.putItem(env.SOURCES_TABLE, updated);
   return updated;

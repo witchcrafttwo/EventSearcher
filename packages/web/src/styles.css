@@ -418,6 +418,33 @@ button:disabled {
   padding: 8px;
 }
 
+.sourceImageToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+  margin-top: 4px;
+}
+
+.sourceImageToggle input {
+  width: 14px;
+  height: 14px;
+}
+
+.sourceNote {
+  margin-top: 4px;
+  width: 100%;
+  max-width: 420px;
+  font-size: 12px;
+  color: #334155;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  padding: 6px 8px;
+  resize: vertical;
+  font-family: inherit;
+}
+
 /* エリア選択・イベント並び替えコントロール */
 .profilePanel select {
   height: 40px;
