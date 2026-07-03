@@ -9,3 +9,5 @@ cdk.out/
 !.env.example
 .dev.vars
 *.tsbuildinfo
+えひめイベントナビ_発表資料.pptx
+make_slides.py
