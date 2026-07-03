@@ -47,18 +47,15 @@ app.get("/profiles/:profileId/events", async (c) => {
 app.get("/events", async (c) => {
   const area = (c.req.query("area") ?? "").trim();
   const ddb = new DynamoClient(c.env);
-  const events = await ddb.query<EventRecord>({
-    tableName: c.env.EVENTS_TABLE,
-    indexName: "publishedAtIndex",
-    keyConditionExpression: "eventType = :eventType",
-    expressionAttributeValues: { ":eventType": "event" },
-    scanIndexForward: false,
-    limit: 200
-  });
+  // 全イベントをスキャンして取得する。以前は publishedAt(=収集時刻) の新しい順200件→100件に
+  // 絞っていたため、先に収集したサイト(例: エミフル)のイベントが後の収集分に押し出されて
+  // 消えていた。件数制限を撤廃し、全件を新しい順で返す。
+  const events = await ddb.scanAll<EventRecord>(c.env.EVENTS_TABLE);
   const allSources = await loadAllSources(c.env);
   const disabled = buildDisabledMatcherFrom(allSources);
   const applyForced = buildForcedCategory(allSources);
   const filtered = events
+    .filter((e) => e.eventType === "event")
     .filter((e) => !disabled(e)) // OFFのサイトは表示しない
     .filter((e) => {
       if (!area) return true;
@@ -68,8 +65,9 @@ app.get("/events", async (c) => {
     .map((e) => {
       const forced = applyForced(e); // 固定カテゴリのサイトは表示時に上書き
       return forced ? { ...e, category: forced } : e;
-    });
-  return c.json({ events: filtered.slice(0, 100) });
+    })
+    .sort((a, b) => (b.publishedAt ?? "").localeCompare(a.publishedAt ?? "")); // 新しい順
+  return c.json({ events: filtered });
 });
 
 // エリア選択肢: 表示対象(ON)のイベントから重複なしのエリア一覧を返す
