@@ -40,6 +40,14 @@ export async function listSources(): Promise<Source[]> {
   return body.sources;
 }
 
+export type Stats = { total: number; counts: Record<string, number>; unmatched: number };
+
+export async function getStats(): Promise<Stats> {
+  const response = await adminFetch("/admin/stats");
+  if (!response.ok) throw new Error("統計を取得できませんでした");
+  return (await response.json()) as Stats;
+}
+
 export async function addSource(input: { url: string; name?: string; area?: string }): Promise<Source> {
   const response = await adminFetch("/sources", {
     method: "POST",

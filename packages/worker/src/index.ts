@@ -146,6 +146,27 @@ app.get("/admin/sources-all", async (c) => {
   return c.json({ sources: await loadAllSources(c.env) });
 });
 
+// 統計: 保存イベント総数と、ソースごとの件数（管理画面表示用）
+app.get("/admin/stats", async (c) => {
+  const ddb = new DynamoClient(c.env);
+  const events = await ddb.scanAll<EventRecord>(c.env.EVENTS_TABLE);
+  const sources = await loadAllSources(c.env);
+  const hostToId = new Map<string, string>();
+  for (const s of sources) {
+    const h = hostOf(s.url);
+    if (h) hostToId.set(h, s.id);
+  }
+  const ids = new Set(sources.map((s) => s.id));
+  const counts: Record<string, number> = {};
+  let unmatched = 0;
+  for (const ev of events) {
+    const id = ids.has(ev.sourceId) ? ev.sourceId : hostToId.get(hostOf(ev.url));
+    if (id) counts[id] = (counts[id] ?? 0) + 1;
+    else unmatched++;
+  }
+  return c.json({ total: events.length, counts, unmatched });
+});
+
 app.post("/sources", async (c) => {
   const body = await c.req.json<{ url?: string; name?: string; area?: string; type?: string }>();
   return c.json({ source: await addSource(c.env, body) });

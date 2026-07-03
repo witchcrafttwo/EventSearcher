@@ -1,6 +1,6 @@
 import { Link2, LogIn, Plus, RefreshCw, Sparkles, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useState } from "react";
-import { addSource, clearEvents, deleteSource, getToken, listSources, runIngest, setSourceCategory, setSourceEnabled, setToken, type Source } from "./adminApi";
+import { addSource, clearEvents, deleteSource, getStats, getToken, listSources, runIngest, setSourceCategory, setSourceEnabled, setToken, type Source, type Stats } from "./adminApi";
 
 const CATEGORIES = ["祭り・伝統", "音楽・ライブ", "スポーツ", "自然・アウトドア", "アート・展示", "グルメ・マルシェ", "ワークショップ", "文化・講演", "デパート・モール", "その他"];
 
@@ -12,6 +12,7 @@ export function Admin() {
   const [newArea, setNewArea] = useState("");
   const [status, setStatus] = useState("");
   const [isBusy, setIsBusy] = useState(false);
+  const [stats, setStats] = useState<Stats | null>(null);
 
   useEffect(() => {
     if (getToken()) void tryLoad();
@@ -21,7 +22,16 @@ export function Admin() {
     await run("読み込みました。", async () => {
       setSources(await listSources());
       setAuthed(true);
+      void getStats().then(setStats).catch(() => setStats(null));
     });
+  }
+
+  async function refreshStats() {
+    try {
+      setStats(await getStats());
+    } catch {
+      /* 無視 */
+    }
   }
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
@@ -45,6 +55,7 @@ export function Admin() {
     await run("削除しました。", async () => {
       await deleteSource(id);
       setSources((current) => current.filter((s) => s.id !== id));
+      await refreshStats();
     });
   }
 
@@ -67,6 +78,7 @@ export function Admin() {
     await run("全イベントを削除しました。収集し直してください。", async () => {
       const result = await clearEvents();
       setStatus(`${result.deleted}件のイベントを削除しました。`);
+      await refreshStats();
     });
   }
 
@@ -92,6 +104,7 @@ export function Admin() {
     try {
       const result = await runIngest(source.id);
       setStatus(`「${source.name}」収集完了: ${result.saved}件を新規/更新（候補${result.candidates}件）。`);
+      await refreshStats();
     } catch (error) {
       setStatus(`「${source.name}」の収集でエラー: ${error instanceof Error ? error.message : "失敗"}`);
     } finally {
@@ -116,6 +129,7 @@ export function Admin() {
         }
       }
       setStatus(`収集完了: 合計 ${totalSaved}件を新規/更新しました。`);
+      await refreshStats();
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "処理に失敗しました。");
     } finally {
@@ -191,6 +205,12 @@ export function Admin() {
               今すぐ収集
             </button>
           </div>
+          {stats && (
+            <p className="hint">
+              保存イベント総数: <strong>{stats.total}件</strong>
+              {stats.unmatched > 0 && `（うち未分類 ${stats.unmatched}件）`}
+            </p>
+          )}
           <p className="hint">イベント情報のあるページやRSSのURLを登録すると、AIが各イベントの内容から開催地(市区町村)を自動判別して要約します。エリアは通常入力不要です。 チェックを外すと、そのサイトのイベントは検索結果に表示されません（データは残ります）。</p>
           <div className="dangerRow">
             <button className="dangerButton" type="button" onClick={() => void handleClear()} disabled={isBusy}>
@@ -222,7 +242,7 @@ export function Admin() {
                 <div className="sourceInfo">
                   <span className="sourceName">{source.name}</span>
                   <a href={source.url} target="_blank" rel="noreferrer">{source.url}</a>
-                  <span className="sourceTag">{source.area || "エリア自動判定"} / {source.type.toUpperCase()}</span>
+                  <span className="sourceTag">{source.area || "エリア自動判定"} / {source.type.toUpperCase()}{stats ? ` / ${stats.counts[source.id] ?? 0}件` : ""}</span>
                   <label className="sourceCategory">
                     カテゴリ固定:
                     <select
