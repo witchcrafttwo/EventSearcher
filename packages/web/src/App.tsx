@@ -2,6 +2,7 @@ import { ArrowUp, Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, MapPin,
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { fetchAreas, hasApiConfig, searchEvents, type EventItem } from "./api";
 import { enablePush, isPushSupported, notificationPermission } from "./push";
+import { buildPreferences, recommend, recordView } from "./recommend";
 
 // 愛媛県内20市町
 const EHIME_AREAS = [
@@ -67,6 +68,18 @@ export function App() {
   );
   const visible = filtered.slice(0, visibleCount);
   const newCount = useMemo(() => events.filter(isNew).length, [events]);
+  const [viewTick, setViewTick] = useState(0);
+  const recommendations = useMemo(() => {
+    const prefs = buildPreferences(Object.values(bookmarks));
+    const bookmarkedIds = new Set(Object.keys(bookmarks));
+    return recommend(events, prefs, bookmarkedIds, 8);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [events, bookmarks, viewTick]);
+
+  function handleViewDetail(event: EventItem) {
+    recordView(event);
+    setViewTick((t) => t + 1);
+  }
 
   useEffect(() => {
     void fetchAreas().then(setExtraAreas).catch(() => undefined);
@@ -249,6 +262,40 @@ export function App() {
           {notifyMsg && <p className="notifyStatus">{notifyMsg}</p>}
         </form>
 
+        {view === "all" && recommendations.length > 0 && (
+          <section className="recoSection" aria-label="あなたにおすすめ">
+            <h2 className="recoTitle"><Sparkles size={16} /> あなたにおすすめ</h2>
+            <p className="recoHint">ブックマークや閲覧したイベントの傾向から選びました。</p>
+            <div className="recoStrip">
+              {recommendations.map((event) => {
+                const saved = Boolean(bookmarks[event.eventId]);
+                return (
+                  <article className="recoCard" key={event.eventId}>
+                    <div className="recoCardHead">
+                      {event.category && <span className="recoCat">{event.category}</span>}
+                      <button
+                        type="button"
+                        className={saved ? "recoBookmark saved" : "recoBookmark"}
+                        onClick={() => toggleBookmark(event)}
+                        aria-label={saved ? "ブックマークを外す" : "ブックマークに追加"}
+                        title={saved ? "ブックマークを外す" : "ブックマークに追加"}
+                      >
+                        {saved ? <BookmarkCheck size={16} /> : <Bookmark size={16} />}
+                      </button>
+                    </div>
+                    <h3>{event.title}</h3>
+                    <div className="recoMeta">
+                      <span><MapPin size={12} />{event.area || "地域不明"}</span>
+                      <span><CalendarDays size={12} />{formatEventDate(event)}</span>
+                    </div>
+                    <a href={event.url} target="_blank" rel="noreferrer" onClick={() => handleViewDetail(event)}>詳細 →</a>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
         <div className="listHeader">
           <div>
             <p className="newBadge"><Sparkles size={14} /> 新着イベント {newCount}</p>
@@ -299,7 +346,7 @@ export function App() {
                 <p>{event.summary}</p>
                 <div className="cardFooter">
                   <span>{event.sourceName}</span>
-                  <a href={event.url} target="_blank" rel="noreferrer">詳細 →</a>
+                  <a href={event.url} target="_blank" rel="noreferrer" onClick={() => handleViewDetail(event)}>詳細 →</a>
                 </div>
               </div>
             </article>
