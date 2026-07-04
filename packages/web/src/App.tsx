@@ -1,8 +1,8 @@
-import { ArrowUp, Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, MapPin, Search, Sparkles } from "lucide-react";
+import { ArrowUp, Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, History, MapPin, Search, Sparkles, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { fetchAreas, hasApiConfig, searchEvents, type EventItem } from "./api";
 import { enablePush, isPushSupported, notificationPermission } from "./push";
-import { buildPreferences, recommend, recordView } from "./recommend";
+import { buildPreferences, clearViews, loadViewedEvents, recommend, recordView, viewCount } from "./recommend";
 
 // 愛媛県内20市町
 const EHIME_AREAS = [
@@ -13,7 +13,7 @@ const EHIME_AREAS = [
 const CATEGORIES = ["祭り・伝統", "音楽・ライブ", "スポーツ", "自然・アウトドア", "アート・展示", "グルメ・マルシェ", "ワークショップ", "文化・講演", "デパート・モール", "その他"];
 
 type SortKey = "recent" | "dateAsc" | "dateDesc";
-type ViewKey = "all" | "saved";
+type ViewKey = "all" | "saved" | "history";
 type FontScale = "small" | "medium" | "large";
 const PAGE_SIZE = 12;
 const AREA_KEY = "events-ai-area";
@@ -51,6 +51,7 @@ export function App() {
     return saved === "small" || saved === "large" ? saved : "medium";
   });
   const [showTop, setShowTop] = useState(false);
+  const [viewTick, setViewTick] = useState(0);
 
   const apiReady = hasApiConfig();
 
@@ -61,14 +62,20 @@ export function App() {
   }, [extraAreas]);
 
   const bookmarkCount = Object.keys(bookmarks).length;
-  const baseList = view === "saved" ? Object.values(bookmarks) : events;
-  const filtered = useMemo(
-    () => sortAndFilter(baseList, { hidePast, sortBy, categories }),
-    [baseList, hidePast, sortBy, categories]
-  );
+  const viewedEvents = useMemo(() => loadViewedEvents(), [viewTick, view]);
+  const historyCount = useMemo(() => viewCount(), [viewTick, view]);
+  const filtered = useMemo(() => {
+    if (view === "history") {
+      // 履歴は閲覧順を維持。カテゴリ絞り込みのみ適用（終了済みも表示する）
+      return categories.length > 0
+        ? viewedEvents.filter((e) => categories.includes(e.category ?? "その他"))
+        : viewedEvents;
+    }
+    const baseList = view === "saved" ? Object.values(bookmarks) : events;
+    return sortAndFilter(baseList, { hidePast, sortBy, categories });
+  }, [view, viewedEvents, bookmarks, events, hidePast, sortBy, categories]);
   const visible = filtered.slice(0, visibleCount);
   const newCount = useMemo(() => events.filter(isNew).length, [events]);
-  const [viewTick, setViewTick] = useState(0);
   const recommendations = useMemo(() => {
     const prefs = buildPreferences(Object.values(bookmarks));
     const bookmarkedIds = new Set(Object.keys(bookmarks));
@@ -119,6 +126,12 @@ export function App() {
   function switchView(next: ViewKey) {
     setView(next);
     setVisibleCount(PAGE_SIZE);
+  }
+
+  function handleClearHistory() {
+    if (!window.confirm("閲覧履歴をすべて消去します。よろしいですか？（ブックマークは消えません）")) return;
+    clearViews();
+    setViewTick((t) => t + 1);
   }
 
   function toggleCategory(cat: string) {
@@ -214,9 +227,16 @@ export function App() {
           >
             <BookmarkCheck size={15} /> ブックマーク（{bookmarkCount}）
           </button>
+          <button
+            type="button"
+            className={view === "history" ? "viewTab active" : "viewTab"}
+            onClick={() => switchView("history")}
+          >
+            <History size={15} /> 閲覧履歴（{historyCount}）
+          </button>
         </div>
 
-        <form className="filterCard" onSubmit={handleSubmit} hidden={view === "saved"}>
+        <form className="filterCard" onSubmit={handleSubmit} hidden={view !== "all"}>
           <div className="filterRow">
             <label className="field">
               <span><MapPin size={14} /> 地域</span>
@@ -299,22 +319,34 @@ export function App() {
         <div className="listHeader">
           <div>
             <p className="newBadge"><Sparkles size={14} /> 新着イベント {newCount}</p>
-            <p className="listStatus">{view === "saved" ? "ブックマーク一覧" : status}・{filtered.length}件</p>
+            <p className="listStatus">
+              {view === "saved" ? "ブックマーク一覧" : view === "history" ? "閲覧履歴（新しい順）" : status}・{filtered.length}件
+            </p>
           </div>
-          <label className="sortLabel">
-            <span>並び替え</span>
-            <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)}>
-              <option value="dateAsc">開催日が近い順</option>
-              <option value="dateDesc">開催日が遠い順</option>
-              <option value="recent">新着順</option>
-            </select>
-          </label>
+          {view === "history" ? (
+            historyCount > 0 && (
+              <button className="ghostButton" type="button" onClick={handleClearHistory}>
+                <Trash2 size={16} /> 履歴を消去
+              </button>
+            )
+          ) : (
+            <label className="sortLabel">
+              <span>並び替え</span>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as SortKey)}>
+                <option value="dateAsc">開催日が近い順</option>
+                <option value="dateDesc">開催日が遠い順</option>
+                <option value="recent">新着順</option>
+              </select>
+            </label>
+          )}
         </div>
 
-        <label className="checkboxLabel listCheckbox">
-          <input type="checkbox" checked={hidePast} onChange={(e) => setHidePast(e.target.checked)} />
-          <span>終了したイベントを隠す</span>
-        </label>
+        {view !== "history" && (
+          <label className="checkboxLabel listCheckbox">
+            <input type="checkbox" checked={hidePast} onChange={(e) => setHidePast(e.target.checked)} />
+            <span>終了したイベントを隠す</span>
+          </label>
+        )}
 
         <div className="cardGrid">
           {visible.map((event) => {
@@ -354,8 +386,14 @@ export function App() {
           })}
           {visible.length === 0 && (
             <div className="emptyState">
-              {view === "saved" ? <Bookmark size={34} /> : <Search size={34} />}
-              <p>{view === "saved" ? "まだブックマークがありません。気になるイベントの🔖を押すとここに保存されます。" : "該当するイベントがありません。"}</p>
+              {view === "saved" ? <Bookmark size={34} /> : view === "history" ? <History size={34} /> : <Search size={34} />}
+              <p>
+                {view === "saved"
+                  ? "まだブックマークがありません。気になるイベントの🔖を押すとここに保存されます。"
+                  : view === "history"
+                    ? "まだ閲覧履歴がありません。イベントの「詳細 →」を開くとここに残ります。"
+                    : "該当するイベントがありません。"}
+              </p>
             </div>
           )}
         </div>

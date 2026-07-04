@@ -1,31 +1,51 @@
 import type { EventItem } from "./api";
 
 // 閲覧履歴・ブックマークから「好み」を推定し、おすすめイベントを算出する（すべてローカル）。
+// 履歴タブ表示のため、イベント全体を保存する。
 const VIEW_KEY = "events-ai-views";
 const MAX_VIEWS = 120;
 
-type ViewRecord = { eventId: string; category?: string; area?: string; ts: number };
+type ViewRecord = { event: EventItem; ts: number };
 
-function loadViews(): ViewRecord[] {
+function loadViewRecords(): ViewRecord[] {
   try {
     const raw = localStorage.getItem(VIEW_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw) as ViewRecord[];
-    return Array.isArray(parsed) ? parsed : [];
+    // 旧フォーマット（eventを持たない）や壊れた要素は除外
+    return Array.isArray(parsed) ? parsed.filter((v) => v && typeof v === "object" && v.event && v.event.eventId) : [];
   } catch {
     return [];
   }
 }
 
 /** イベントを閲覧したことを記録（詳細クリック時などに呼ぶ）。同一は最新へ寄せ、最大件数で打ち切り。 */
-export function recordView(event: Pick<EventItem, "eventId" | "category" | "area">): void {
-  const list = loadViews().filter((v) => v.eventId !== event.eventId);
-  list.unshift({ eventId: event.eventId, category: event.category, area: event.area, ts: Date.now() });
+export function recordView(event: EventItem): void {
+  const list = loadViewRecords().filter((v) => v.event.eventId !== event.eventId);
+  list.unshift({ event, ts: Date.now() });
   try {
     localStorage.setItem(VIEW_KEY, JSON.stringify(list.slice(0, MAX_VIEWS)));
   } catch {
     /* 保存失敗は無視 */
   }
+}
+
+/** 閲覧したイベントを新しい順で返す（履歴タブ用） */
+export function loadViewedEvents(): EventItem[] {
+  return loadViewRecords().map((v) => v.event);
+}
+
+/** 閲覧履歴を全消去 */
+export function clearViews(): void {
+  try {
+    localStorage.removeItem(VIEW_KEY);
+  } catch {
+    /* 無視 */
+  }
+}
+
+export function viewCount(): number {
+  return loadViewRecords().length;
 }
 
 type Preferences = {
@@ -49,9 +69,9 @@ export function buildPreferences(bookmarks: EventItem[]): Preferences {
     add(area, b.area, 2);
   }
   // 閲覧履歴: 弱い好み
-  for (const v of loadViews()) {
-    add(category, v.category, 1);
-    add(area, v.area, 0.5);
+  for (const v of loadViewRecords()) {
+    add(category, v.event.category, 1);
+    add(area, v.event.area, 0.5);
   }
 
   const hasSignal = Object.keys(category).length > 0 || Object.keys(area).length > 0;
