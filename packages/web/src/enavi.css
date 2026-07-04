@@ -5,7 +5,7 @@
 }
 
 .enaviHeader {
-  background: linear-gradient(135deg, #0f766e, #0e7490);
+  background: linear-gradient(135deg, #ea580c, #f97316);
   color: #fff;
 }
 
@@ -13,6 +13,48 @@
   max-width: 1040px;
   margin: 0 auto;
   padding: 22px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+/* 文字サイズ変更（小・中・大） */
+.fontSizeControl {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.fontSizeControl > span {
+  font-size: 12px;
+  opacity: 0.9;
+  margin-right: 2px;
+}
+
+.fontSizeControl button {
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+  line-height: 1;
+}
+
+.fontSizeControl button:nth-child(2) { font-size: 12px; }
+.fontSizeControl button:nth-child(3) { font-size: 15px; }
+.fontSizeControl button:nth-child(4) { font-size: 18px; }
+
+.fontSizeControl button.active {
+  background: #fff;
+  color: #ea580c;
+  border-color: #fff;
 }
 
 .enaviHeader h1 {
@@ -84,7 +126,7 @@
   padding: 0 20px;
   border: 0;
   border-radius: 10px;
-  background: #0f766e;
+  background: #ea580c;
   color: #fff;
   font-weight: 700;
   font-size: 14px;
@@ -122,7 +164,7 @@
   gap: 5px;
   margin: 0;
   font-weight: 700;
-  color: #0f766e;
+  color: #ea580c;
 }
 
 .listStatus {
@@ -159,7 +201,7 @@
 .checkboxLabel input {
   width: 16px;
   height: 16px;
-  accent-color: #0f766e;
+  accent-color: #ea580c;
 }
 
 .listCheckbox {
@@ -207,7 +249,7 @@
   position: absolute;
   top: 8px;
   left: 8px;
-  background: rgba(15, 118, 110, 0.92);
+  background: rgba(234, 88, 12, 0.92);
   color: #fff;
   font-size: 11px;
   font-weight: 700;
@@ -268,7 +310,7 @@
 }
 
 .cardFooter a {
-  color: #0f766e;
+  color: #c2410c;
   font-weight: 700;
   text-decoration: none;
   white-space: nowrap;
@@ -292,7 +334,7 @@
   border: 1px solid #cbd5e1;
   border-radius: 999px;
   background: #fff;
-  color: #0f766e;
+  color: #ea580c;
   font-weight: 700;
   cursor: pointer;
 }
@@ -338,13 +380,13 @@
 }
 
 .viewTab:hover {
-  border-color: #0f766e;
-  color: #0f766e;
+  border-color: #ea580c;
+  color: #ea580c;
 }
 
 .viewTab.active {
-  background: #0f766e;
-  border-color: #0f766e;
+  background: #ea580c;
+  border-color: #ea580c;
   color: #fff;
 }
 
@@ -421,12 +463,12 @@
 }
 
 .categoryChip:hover {
-  border-color: #0f766e;
+  border-color: #ea580c;
 }
 
 .categoryChip.active {
-  background: #0f766e;
-  border-color: #0f766e;
+  background: #ea580c;
+  border-color: #ea580c;
   color: #fff;
   font-weight: 700;
 }
@@ -434,9 +476,66 @@
 .notifyStatus {
   margin: 8px 2px 0;
   font-size: 13px;
-  color: #0f766e;
-  background: #f0fdfa;
-  border: 1px solid #99f6e4;
+  color: #c2410c;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
   border-radius: 8px;
   padding: 8px 10px;
+}
+
+/* ===== 文字サイズスケール ===== */
+.enavi { --fs: 1; }
+.enavi.fs-small { --fs: 0.9; }
+.enavi.fs-medium { --fs: 1; }
+.enavi.fs-large { --fs: 1.2; }
+
+/* 読みやすさに関わる主要テキストをスケール（高い詳細度で既定値を上書き） */
+.enavi .enaviCard h3 { font-size: calc(16px * var(--fs)); }
+.enavi .enaviCard p { font-size: calc(13px * var(--fs)); }
+.enavi .cardMeta { font-size: calc(12px * var(--fs)); }
+.enavi .cardFooter { font-size: calc(12px * var(--fs)); }
+.enavi .listStatus { font-size: calc(13px * var(--fs)); }
+.enavi .newBadge { font-size: calc(14px * var(--fs)); }
+.enavi .field { font-size: calc(13px * var(--fs)); }
+.enavi .field select { font-size: calc(15px * var(--fs)); }
+.enavi .categoryChip { font-size: calc(13px * var(--fs)); }
+.enavi .viewTab { font-size: calc(13px * var(--fs)); }
+.enavi .checkboxLabel { font-size: calc(13px * var(--fs)); }
+.enavi .sortLabel { font-size: calc(13px * var(--fs)); }
+.enavi .sortLabel select { font-size: calc(14px * var(--fs)); }
+
+/* ===== トップへ戻るボタン ===== */
+.scrollTopBtn {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border: none;
+  border-radius: 999px;
+  background: #ea580c;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.28);
+  cursor: pointer;
+  z-index: 50;
+  transition: background 0.15s, transform 0.1s;
+}
+
+.scrollTopBtn:hover {
+  background: #c2410c;
+}
+
+.scrollTopBtn:active {
+  transform: scale(0.92);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrollTopBtn { transition: none; }
+}
+
+/* iPhone等のセーフエリアを避ける */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .scrollTopBtn { bottom: calc(18px + env(safe-area-inset-bottom)); }
 }

@@ -1,4 +1,4 @@
-import { Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, MapPin, Search, Sparkles } from "lucide-react";
+import { ArrowUp, Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, MapPin, Search, Sparkles } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { fetchAreas, hasApiConfig, searchEvents, type EventItem } from "./api";
 import { enablePush, isPushSupported, notificationPermission } from "./push";
@@ -13,9 +13,11 @@ const CATEGORIES = ["祭り・伝統", "音楽・ライブ", "スポーツ", "�
 
 type SortKey = "recent" | "dateAsc" | "dateDesc";
 type ViewKey = "all" | "saved";
+type FontScale = "small" | "medium" | "large";
 const PAGE_SIZE = 12;
 const AREA_KEY = "events-ai-area";
 const BOOKMARK_KEY = "events-ai-bookmarks";
+const FONT_KEY = "events-ai-font-scale";
 
 function loadBookmarks(): Record<string, EventItem> {
   try {
@@ -43,6 +45,11 @@ export function App() {
   const [notifyBusy, setNotifyBusy] = useState(false);
   const [notifyMsg, setNotifyMsg] = useState("");
   const [notifyOn, setNotifyOn] = useState(() => notificationPermission() === "granted");
+  const [fontScale, setFontScale] = useState<FontScale>(() => {
+    const saved = localStorage.getItem(FONT_KEY);
+    return saved === "small" || saved === "large" ? saved : "medium";
+  });
+  const [showTop, setShowTop] = useState(false);
 
   const apiReady = hasApiConfig();
 
@@ -70,6 +77,22 @@ export function App() {
   useEffect(() => {
     localStorage.setItem(BOOKMARK_KEY, JSON.stringify(bookmarks));
   }, [bookmarks]);
+
+  useEffect(() => {
+    localStorage.setItem(FONT_KEY, fontScale);
+  }, [fontScale]);
+
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 400);
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+    return () => window.removeEventListener("scroll", onScroll);
+  }, []);
+
+  function scrollToTop() {
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    window.scrollTo({ top: 0, behavior: reduce ? "auto" : "smooth" });
+  }
 
   function toggleBookmark(event: EventItem) {
     setBookmarks((prev) => {
@@ -134,11 +157,29 @@ export function App() {
   }
 
   return (
-    <div className="enavi">
+    <div className={`enavi fs-${fontScale}`}>
       <header className="enaviHeader">
         <div className="enaviHeaderInner">
-          <h1>えひめイベントナビ</h1>
-          <p>愛媛県内20市町のイベント情報をまとめてチェック</p>
+          <div className="enaviHeaderText">
+            <h1>えひめイベントナビ</h1>
+            <p>愛媛県内20市町のイベント情報をまとめてチェック</p>
+          </div>
+          <div className="fontSizeControl" role="group" aria-label="文字サイズの変更">
+            <span aria-hidden="true">文字</span>
+            {([["small", "小"], ["medium", "中"], ["large", "大"]] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                className={fontScale === value ? "active" : ""}
+                onClick={() => setFontScale(value)}
+                aria-pressed={fontScale === value}
+                aria-label={`文字サイズ${label}`}
+                title={`文字サイズ${label}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </header>
 
@@ -282,6 +323,12 @@ export function App() {
       <footer className="enaviFooter">
         © 2026 えひめイベントナビ ｜ 地域イベント情報をAIが自動収集・要約
       </footer>
+
+      {showTop && (
+        <button className="scrollTopBtn" type="button" onClick={scrollToTop} aria-label="ページの先頭へ戻る" title="上へ戻る">
+          <ArrowUp size={22} />
+        </button>
+      )}
     </div>
   );
 }

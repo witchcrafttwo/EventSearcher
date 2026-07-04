@@ -25,7 +25,7 @@ button {
 .appShell {
   min-height: 100vh;
   background:
-    linear-gradient(180deg, rgba(15, 118, 110, 0.08), rgba(248, 250, 252, 0) 320px),
+    linear-gradient(180deg, rgba(234, 88, 12, 0.08), rgba(248, 250, 252, 0) 320px),
     #f8fafc;
 }
 
@@ -57,7 +57,7 @@ button {
 
 .eyebrow {
   margin: 0 0 4px;
-  color: #0f766e;
+  color: #ea580c;
   font-size: 13px;
   font-weight: 700;
 }
@@ -170,7 +170,7 @@ input {
 }
 
 .chip.selected {
-  background: #0f766e;
+  background: #ea580c;
   color: #fff;
 }
 
@@ -271,7 +271,7 @@ button:disabled {
 }
 
 .eventFooter a {
-  color: #0f766e;
+  color: #ea580c;
   font-weight: 700;
   text-decoration: none;
 }
@@ -675,7 +675,7 @@ button:disabled {
 .checkboxLabel input {
   width: 16px;
   height: 16px;
-  accent-color: #0f766e;
+  accent-color: #ea580c;
 }
 
 .sortLabel {
@@ -713,7 +713,7 @@ button:disabled {
   align-items: center;
   gap: 8px;
   flex: 1 1 240px;
-  color: #0f766e;
+  color: #ea580c;
 }
 
 .searchArea select {
@@ -737,7 +737,7 @@ button:disabled {
 .sourceToggle input {
   width: 18px;
   height: 18px;
-  accent-color: #0f766e;
+  accent-color: #ea580c;
   cursor: pointer;
 }
 
