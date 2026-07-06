@@ -136,6 +136,8 @@ export type SourceEvent = {
   summary?: string;
   eventDate?: string;
   eventEndDate?: string;
+  venue?: string;
+  address?: string;
   publishedAt?: string;
   createdAt?: string;
   imageUrl?: string;
@@ -152,7 +154,7 @@ export async function deleteEvent(eventId: string): Promise<void> {
   if (!response.ok) throw new Error("イベントの削除に失敗しました");
 }
 
-export type EventEditPatch = Partial<Pick<SourceEvent, "title" | "summary" | "category" | "area" | "eventDate" | "eventEndDate">>;
+export type EventEditPatch = Partial<Pick<SourceEvent, "title" | "summary" | "category" | "area" | "eventDate" | "eventEndDate" | "venue" | "address">>;
 
 export async function editEvent(eventId: string, patch: EventEditPatch): Promise<SourceEvent> {
   const response = await adminFetch(`/admin/events/${encodeURIComponent(eventId)}`, {

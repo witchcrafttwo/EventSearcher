@@ -173,6 +173,8 @@ export function Admin() {
       summary: ev.summary,
       category: ev.category,
       area: ev.area,
+      venue: ev.venue,
+      address: ev.address,
       eventDate: ev.eventDate,
       eventEndDate: ev.eventEndDate
     });
@@ -565,6 +567,16 @@ export function Admin() {
                                           onChange={(e) => setEditDraft((d) => ({ ...d, area: e.target.value }))}
                                         />
                                       </div>
+                                      <input
+                                        placeholder="会場名"
+                                        value={editDraft.venue ?? ""}
+                                        onChange={(e) => setEditDraft((d) => ({ ...d, venue: e.target.value }))}
+                                      />
+                                      <input
+                                        placeholder="住所（保存すると地図の位置を取り直します）"
+                                        value={editDraft.address ?? ""}
+                                        onChange={(e) => setEditDraft((d) => ({ ...d, address: e.target.value }))}
+                                      />
                                       <div className="eventEditRow">
                                         <input
                                           type="date"
@@ -597,7 +609,7 @@ export function Admin() {
                                       <div className="eventInfo">
                                         <span className="eventTitle">{ev.title}</span>
                                         <span className="eventMeta">
-                                          {[ev.category, ev.area, ev.eventDate].filter(Boolean).join(" / ") || "詳細なし"}
+                                          {[ev.category, ev.area, ev.venue, ev.eventDate].filter(Boolean).join(" / ") || "詳細なし"}
                                         </span>
                                         <a href={ev.url} target="_blank" rel="noreferrer">{ev.url}</a>
                                       </div>

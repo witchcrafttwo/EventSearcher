@@ -11,6 +11,7 @@ import { matchesProfile } from "./matching.js";
 import { buildAiText, fetchPageData, fetchPageText } from "./page.js";
 import { setupTables } from "./setup.js";
 import { fetchCandidates } from "./source-fetcher.js";
+import { buildGeoQuery, geocode } from "./geocode.js";
 import { addSource, deleteSource, listSources, loadAllSources, updateSource } from "./sources.js";
 import type { Env, EventRecord, EventSourceConfig, PushSubscriptionRecord, RawEventCandidate, UserProfile } from "./types.js";
 
@@ -160,17 +161,26 @@ app.delete("/admin/events/:eventId", async (c) => {
 // 単一イベントの手動編集（AIの誤りを直す用）。渡されたフィールドだけ上書きする。
 app.patch("/admin/events/:eventId", async (c) => {
   const eventId = c.req.param("eventId");
-  const body = await c.req.json<Partial<Pick<EventRecord, "title" | "summary" | "category" | "area" | "eventDate" | "eventEndDate">>>();
+  const body = await c.req.json<Partial<Pick<EventRecord, "title" | "summary" | "category" | "area" | "eventDate" | "eventEndDate" | "venue" | "address">>>();
   const ddb = new DynamoClient(c.env);
   const existing = await ddb.getItem<EventRecord>(c.env.EVENTS_TABLE, { eventId });
   if (!existing) return c.json({ message: "event not found" }, 404);
   const updated: EventRecord = { ...existing };
-  for (const key of ["title", "summary", "category", "area", "eventDate", "eventEndDate"] as const) {
+  for (const key of ["title", "summary", "category", "area", "eventDate", "eventEndDate", "venue", "address"] as const) {
     const value = body[key];
     if (value === undefined) continue;
     const trimmed = String(value).trim();
     if (trimmed) (updated[key] as string) = trimmed;
-    else if (key === "eventDate" || key === "eventEndDate" || key === "category") delete updated[key]; // 任意項目は空でクリア可
+    else if (key === "eventDate" || key === "eventEndDate" || key === "category" || key === "venue" || key === "address") delete updated[key]; // 任意項目は空でクリア可
+  }
+  // 住所/会場を編集したら座標を取り直す（失敗時は既存のまま）
+  const geoQuery = buildGeoQuery(updated);
+  if (geoQuery && (body.address !== undefined || body.venue !== undefined || body.area !== undefined)) {
+    const coords = await geocode(geoQuery);
+    if (coords) {
+      updated.lat = coords.lat;
+      updated.lng = coords.lng;
+    }
   }
   await ddb.putItem(c.env.EVENTS_TABLE, updated);
   return c.json({ event: updated });
@@ -196,7 +206,16 @@ app.post("/admin/events/:eventId/reenrich", async (c) => {
   };
   const enriched = await enrichCandidate(c.env, candidate);
   if (!enriched) return c.json({ message: "AI要約に失敗しました" }, 422);
-  const updated: EventRecord = { ...existing, ...enriched, eventId, eventType: "event", imageUrl: imageUrl ?? existing.imageUrl };
+  const geoQuery = buildGeoQuery(enriched);
+  const coords = geoQuery ? await geocode(geoQuery) : null;
+  const updated: EventRecord = {
+    ...existing,
+    ...enriched,
+    eventId,
+    eventType: "event",
+    imageUrl: imageUrl ?? existing.imageUrl,
+    ...(coords ? { lat: coords.lat, lng: coords.lng } : {})
+  };
   await ddb.putItem(c.env.EVENTS_TABLE, updated);
   return c.json({ event: updated });
 });

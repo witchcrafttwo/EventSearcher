@@ -1,6 +1,7 @@
-import { ArrowUp, Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, History, MapPin, Search, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUp, Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, History, Map as MapIcon, MapPin, Search, Sparkles, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { fetchAreas, hasApiConfig, searchEvents, type EventItem } from "./api";
+import { EventsMap } from "./EventsMap";
 import { enablePush, isPushSupported, notificationPermission } from "./push";
 import { buildPreferences, clearViews, loadViewedEvents, recommend, recordView, viewCount } from "./recommend";
 
@@ -13,7 +14,7 @@ const EHIME_AREAS = [
 const CATEGORIES = ["祭り・伝統", "音楽・ライブ", "スポーツ", "自然・アウトドア", "アート・展示", "グルメ・マルシェ", "ワークショップ", "文化・講演", "デパート・モール", "その他"];
 
 type SortKey = "recent" | "dateAsc" | "dateDesc";
-type ViewKey = "all" | "saved" | "history";
+type ViewKey = "all" | "saved" | "history" | "map";
 type FontScale = "small" | "medium" | "large";
 const PAGE_SIZE = 12;
 const AREA_KEY = "events-ai-area";
@@ -234,9 +235,16 @@ export function App() {
           >
             <History size={15} /> 閲覧履歴（{historyCount}）
           </button>
+          <button
+            type="button"
+            className={view === "map" ? "viewTab active" : "viewTab"}
+            onClick={() => switchView("map")}
+          >
+            <MapIcon size={15} /> マップ
+          </button>
         </div>
 
-        <form className="filterCard" onSubmit={handleSubmit} hidden={view !== "all"}>
+        <form className="filterCard" onSubmit={handleSubmit} hidden={view === "saved" || view === "history"}>
           <div className="filterRow">
             <label className="field">
               <span><MapPin size={14} /> 地域</span>
@@ -316,6 +324,19 @@ export function App() {
           </section>
         )}
 
+        {view === "map" && (
+          <>
+            <label className="checkboxLabel listCheckbox">
+              <input type="checkbox" checked={hidePast} onChange={(e) => setHidePast(e.target.checked)} />
+              <span>終了したイベントを隠す</span>
+            </label>
+            <EventsMap events={filtered} />
+            <p className="mapNote">ピンは各イベントの「開催地（市町）」のおおよその位置です（会場ピンポイントではありません）。上の地域・カテゴリで絞り込めます。</p>
+          </>
+        )}
+
+        {view !== "map" && (
+        <>
         <div className="listHeader">
           <div>
             <p className="newBadge"><Sparkles size={14} /> 新着イベント {newCount}</p>
@@ -371,7 +392,7 @@ export function App() {
               </div>
               <div className="cardBody">
                 <div className="cardMeta">
-                  <span><MapPin size={13} />{event.area || "地域不明"}</span>
+                  <span><MapPin size={13} />{event.venue || event.area || "地域不明"}</span>
                   <span><CalendarDays size={13} />{formatEventDate(event)}</span>
                 </div>
                 <h3>{event.title}</h3>
@@ -402,6 +423,8 @@ export function App() {
           <button className="moreButton" type="button" onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}>
             もっと見る（残り{filtered.length - visibleCount}件）
           </button>
+        )}
+        </>
         )}
       </main>
 

@@ -2,6 +2,7 @@ import { sha256Hex } from "./crypto.js";
 import { discoverCandidates, isDiscoveryEnabled } from "./discovery.js";
 import { DynamoClient } from "./dynamo.js";
 import { enrichCandidate } from "./event-ai.js";
+import { buildGeoQuery, geocode } from "./geocode.js";
 import { buildAiText, fetchPageData } from "./page.js";
 import { fetchCandidates } from "./source-fetcher.js";
 import { loadAllSources, recordIngestResult } from "./sources.js";
@@ -53,9 +54,13 @@ export async function runIngest(
     // 管理画面で固定カテゴリが設定されたサイトのみ上書き（未設定はAIの判定のまま）
     const forced = forceCategoryById.get(candidate.sourceId);
     if (forced) enriched.category = forced;
+    // 住所/会場名からジオコーディングして正確な座標を付与（失敗時は市中心にフォールバック）
+    const geoQuery = buildGeoQuery(enriched);
+    const coords = geoQuery ? await geocode(geoQuery) : null;
     const event: EventRecord = {
       ...enriched,
       imageUrl: hydrated.imageUrl,
+      ...(coords ? { lat: coords.lat, lng: coords.lng } : {}),
       eventId,
       eventType: "event",
       createdAt: new Date().toISOString()

@@ -9,6 +9,8 @@ type AiEvent = {
   isEvent?: boolean;
   eventDate?: string;
   eventEndDate?: string;
+  venue?: string;
+  address?: string;
   targetAgeMin?: number;
   targetAgeMax?: number;
   interests?: string[];
@@ -63,6 +65,8 @@ function mergeParsedEvent(parsed: AiEvent, fallback: EnrichedEvent): EnrichedEve
     category: normalizeCategory(parsed.category),
     eventDate: normalizeDate(parsed.eventDate) ?? fallback.eventDate,
     eventEndDate: normalizeDate(parsed.eventEndDate) ?? fallback.eventEndDate,
+    venue: parsed.venue?.trim() || fallback.venue,
+    address: parsed.address?.trim() || fallback.address,
     targetAgeMin: parsed.targetAgeMin ?? fallback.targetAgeMin,
     targetAgeMax: parsed.targetAgeMax ?? fallback.targetAgeMax,
     interests: normalizeInterests(parsed.interests ?? fallback.interests)
@@ -80,8 +84,10 @@ function buildPrompt(candidate: RawEventCandidate): string {
     "重要: 出力はJSONオブジェクトのみ。マークダウン記号(```)・前置き・説明文は一切付けないこと。",
     "",
     "JSON schema:",
-    '{"title":"string","summary":"string","area":"string","category":"string","isEvent":boolean,"eventDate":"YYYY-MM-DD","eventEndDate":"YYYY-MM-DD","targetAgeMin":number,"targetAgeMax":number,"interests":["string"]}',
+    '{"title":"string","summary":"string","area":"string","category":"string","isEvent":boolean,"eventDate":"YYYY-MM-DD","eventEndDate":"YYYY-MM-DD","venue":"string","address":"string","targetAgeMin":number,"targetAgeMax":number,"interests":["string"]}',
     "",
+    "venue: 開催会場の名称（例: 松山市総合コミュニティセンター、エミフルMASAKI）。本文から抽出し、無ければ空文字。",
+    "address: 会場の住所（できるだけ番地まで。例: 愛媛県松山市○○町1-2-3）。本文から抽出し、無ければ空文字。推測で作らない。",
     "isEvent: 内容が個別の「イベント・催し・行事」ならtrue。一覧ページ・検索ページ・カテゴリ・索引・施設案内・組織案内・電話帳・アクセス案内など、単一イベントでないものはfalse。",
     `category: 次から最も近いものを1つ選ぶ: ${CATEGORIES.join(" / ")}`,
     "「デパート・モール」はデパート・百貨店・ショッピングモール・商業施設で開催される催事（物産展・セール・館内イベント等）に使う。",

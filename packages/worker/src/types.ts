@@ -49,6 +49,10 @@ export type EventRecord = {
   eventEndDate?: string;
   category?: string;
   imageUrl?: string;
+  venue?: string; // 会場名（AIが本文から抽出）
+  address?: string; // 住所（AIが本文から抽出）
+  lat?: number; // 住所/会場からジオコーディングした緯度（マップの正確なピン用）
+  lng?: number; // 経度
   targetAgeMin?: number;
   targetAgeMax?: number;
   interests: string[];

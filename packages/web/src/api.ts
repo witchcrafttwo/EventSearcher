@@ -19,6 +19,10 @@ export type EventItem = {
   createdAt?: string;
   eventDate?: string;
   eventEndDate?: string;
+  venue?: string;
+  address?: string;
+  lat?: number;
+  lng?: number;
   targetAgeMin?: number;
   targetAgeMax?: number;
   interests: string[];
