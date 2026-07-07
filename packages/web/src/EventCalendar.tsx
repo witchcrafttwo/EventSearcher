@@ -103,11 +103,17 @@ export function EventCalendar({ month, events, selectedDay, onPrev, onNext, onPi
             >
               <span className="calDay">{cell.day}</span>
               {cats.length > 0 && (
-                <span className="calBars">
+                <span className="calCats">
                   {cats.slice(0, 3).map((c) => (
-                    <i key={c} className="calBar" style={{ background: categoryColor(c) }} />
+                    <span
+                      key={c}
+                      className="calCat"
+                      style={{ background: `${categoryColor(c)}22`, color: categoryColor(c) }}
+                    >
+                      {c}
+                    </span>
                   ))}
-                  {cats.length > 3 && <em className="calMore">+{cats.length - 3}</em>}
+                  {cats.length > 3 && <span className="calCatMore">＋{cats.length - 3}</span>}
                 </span>
               )}
             </button>

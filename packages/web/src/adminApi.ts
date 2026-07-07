@@ -114,8 +114,11 @@ export async function setSourceNote(id: string, note: string): Promise<void> {
 }
 
 export async function runIngest(sourceId?: string): Promise<{ saved: number; notified: number; candidates: number }> {
-  const query = sourceId ? `?sourceId=${encodeURIComponent(sourceId)}` : "";
-  const response = await adminFetch(`/admin/ingest${query}`, { method: "POST" });
+  // 管理画面(HTTP経由)はVercelの60秒制限対策で50秒cap。
+  // 時間無制限で全件収集したい場合はローカルCLI: npm --workspace @prefecture-events-ai/worker run ingest
+  const params = new URLSearchParams({ maxMs: "50000" });
+  if (sourceId) params.set("sourceId", sourceId);
+  const response = await adminFetch(`/admin/ingest?${params.toString()}`, { method: "POST" });
   if (!response.ok) throw new Error("収集に失敗しました");
   return (await response.json()) as { saved: number; notified: number; candidates: number };
 }

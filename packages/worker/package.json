@@ -8,6 +8,7 @@
     "deploy": "wrangler deploy",
     "start": "tsx src/server.ts",
     "start:node": "tsx src/server.ts",
+    "ingest": "tsx src/ingest-cli.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {

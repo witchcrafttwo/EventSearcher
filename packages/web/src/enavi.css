@@ -1015,19 +1015,25 @@
 
 .calCell {
   position: relative;
-  aspect-ratio: 1 / 1;
+  min-height: 66px;
   border: 1px solid #eef2f7;
   border-radius: 8px;
   background: #fff;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 2px;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 3px;
   font-size: 13px;
   color: #334155;
   cursor: default;
-  padding: 0;
+  padding: 4px;
+  overflow: hidden;
+}
+
+.calCell .calDay {
+  text-align: left;
+  font-weight: 600;
 }
 
 .calCell.empty {
@@ -1062,29 +1068,40 @@
   color: #fff;
 }
 
-/* 日セル内のカテゴリ色バー（Googleカレンダー風） */
-.calBars {
+/* 日セル内のカテゴリチップ */
+.calCats {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  width: 78%;
-  align-items: stretch;
+  width: 100%;
 }
 
-.calBar {
-  display: block;
-  height: 3px;
-  border-radius: 2px;
-}
-
-.calMore {
+.calCat {
   font-size: 9px;
-  font-style: normal;
+  font-weight: 700;
+  line-height: 1.4;
+  padding: 1px 4px;
+  border-radius: 4px;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: left;
+}
+
+.calCatMore {
+  font-size: 9px;
   color: #94a3b8;
   line-height: 1;
+  text-align: left;
 }
 
-.calCell.selected .calMore {
+.calCell.selected .calCat {
+  background: rgba(255, 255, 255, 0.25) !important;
+  color: #fff !important;
+}
+
+.calCell.selected .calCatMore {
   color: rgba(255, 255, 255, 0.85);
 }
 

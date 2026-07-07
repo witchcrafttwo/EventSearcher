@@ -119,8 +119,11 @@ app.post("/admin/ingest", async (c) => {
   const limitParam = Number(c.req.query("limit"));
   const limit = Number.isFinite(limitParam) && limitParam > 0 ? limitParam : undefined;
   const sourceId = c.req.query("sourceId") || undefined;
-  // Vercelの60秒制限に収めるため、1回の収集は最大50秒で打ち切る（続きは再実行で処理）
-  return c.json(await runIngest(c.env, { force, limit, sourceId, maxMs: 50000 }));
+  // 時間予算はクエリ maxMs で指定（例: ?maxMs=50000）。未指定なら無制限（ローカル収集用）。
+  // 注意: Vercel(60秒制限)で使う場合は必ず maxMs を付けること。収集はローカルCLI(npm run ingest)推奨。
+  const maxMsParam = Number(c.req.query("maxMs"));
+  const maxMs = Number.isFinite(maxMsParam) && maxMsParam > 0 ? maxMsParam : undefined;
+  return c.json(await runIngest(c.env, { force, limit, sourceId, maxMs }));
 });
 
 // eventsを削除。?sourceId=X で特定サイトのみ、指定なしで全件。
