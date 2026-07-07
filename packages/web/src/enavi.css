@@ -910,3 +910,177 @@
   font-size: 12px;
   color: #94a3b8;
 }
+
+/* ===== 日付絞り込み ===== */
+.dateQuick {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.dateChip {
+  padding: 6px 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.dateChip.active {
+  background: #ea580c;
+  border-color: #ea580c;
+  color: #fff;
+  font-weight: 700;
+}
+
+.dateRange {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.dateRange input {
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #cbd5e1;
+  border-radius: 10px;
+  font-size: 14px;
+  color: #0f172a;
+}
+
+.dateRange span {
+  color: #64748b;
+}
+
+/* ===== カレンダー ===== */
+.calendar {
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  margin-top: 8px;
+}
+
+.calHeader {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  margin-bottom: 10px;
+}
+
+.calLabel {
+  font-size: calc(17px * var(--fs, 1));
+  font-weight: 700;
+  color: #0f172a;
+  min-width: 120px;
+  text-align: center;
+}
+
+.calNav {
+  width: 36px;
+  height: 36px;
+  display: grid;
+  place-items: center;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  background: #fff;
+  color: #475569;
+  cursor: pointer;
+}
+
+.calGrid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.calWeekdays {
+  margin-bottom: 4px;
+}
+
+.calWd {
+  text-align: center;
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  padding: 4px 0;
+}
+
+.calWd.sun { color: #dc2626; }
+.calWd.sat { color: #2563eb; }
+
+.calCell {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  border: 1px solid #eef2f7;
+  border-radius: 8px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 13px;
+  color: #334155;
+  cursor: default;
+  padding: 0;
+}
+
+.calCell.empty {
+  border: none;
+  background: transparent;
+}
+
+.calCell.sun .calDay { color: #dc2626; }
+.calCell.sat .calDay { color: #2563eb; }
+
+.calCell.has {
+  cursor: pointer;
+  background: #fff7ed;
+  border-color: #fed7aa;
+}
+
+.calCell.has:hover {
+  background: #ffedd5;
+}
+
+.calCell.today {
+  outline: 2px solid #ea580c;
+  outline-offset: -2px;
+}
+
+.calCell.selected {
+  background: #ea580c;
+  border-color: #ea580c;
+}
+
+.calCell.selected .calDay,
+.calCell.selected .calCount {
+  color: #fff;
+}
+
+.calCount {
+  font-size: 10px;
+  font-weight: 700;
+  color: #c2410c;
+  background: rgba(234, 88, 12, 0.12);
+  border-radius: 999px;
+  padding: 0 6px;
+  line-height: 15px;
+}
+
+.calSelected {
+  font-weight: 700;
+  color: #0f172a;
+  margin: 14px 2px 8px;
+}
+
+.calHint {
+  margin: 12px 2px;
+  font-size: calc(13px * var(--fs, 1));
+  color: #64748b;
+}

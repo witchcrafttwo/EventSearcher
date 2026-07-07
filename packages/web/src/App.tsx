@@ -1,6 +1,7 @@
 import { ArrowUp, Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, History, Map as MapIcon, MapPin, Search, Sparkles, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { fetchAreas, hasApiConfig, searchEvents, type EventItem } from "./api";
+import { EventCalendar } from "./EventCalendar";
 import { EventDetail } from "./EventDetail";
 import { EventsMap } from "./EventsMap";
 import { enablePush, isPushSupported, notificationPermission } from "./push";
@@ -15,7 +16,7 @@ const EHIME_AREAS = [
 const CATEGORIES = ["祭り・伝統", "音楽・ライブ", "スポーツ", "自然・アウトドア", "アート・展示", "グルメ・マルシェ", "ワークショップ", "文化・講演", "デパート・モール", "その他"];
 
 type SortKey = "recent" | "dateAsc" | "dateDesc";
-type ViewKey = "all" | "saved" | "history" | "map";
+type ViewKey = "all" | "saved" | "history" | "map" | "calendar";
 type FontScale = "small" | "medium" | "large";
 const PAGE_SIZE = 12;
 const AREA_KEY = "events-ai-area";
@@ -55,6 +56,13 @@ export function App() {
   const [showTop, setShowTop] = useState(false);
   const [viewTick, setViewTick] = useState(0);
   const [selected, setSelected] = useState<EventItem | null>(null);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const [calMonth, setCalMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1);
+  });
+  const [calDay, setCalDay] = useState<string | null>(null);
 
   const apiReady = hasApiConfig();
 
@@ -75,9 +83,17 @@ export function App() {
         : viewedEvents;
     }
     const baseList = view === "saved" ? Object.values(bookmarks) : events;
-    return sortAndFilter(baseList, { hidePast, sortBy, categories });
-  }, [view, viewedEvents, bookmarks, events, hidePast, sortBy, categories]);
+    return sortAndFilter(baseList, { hidePast, sortBy, categories, dateFrom, dateTo });
+  }, [view, viewedEvents, bookmarks, events, hidePast, sortBy, categories, dateFrom, dateTo]);
   const visible = filtered.slice(0, visibleCount);
+  const calEvents = useMemo(
+    () => (categories.length ? events.filter((e) => categories.includes(e.category ?? "その他")) : events),
+    [events, categories]
+  );
+  const calDayEvents = useMemo(
+    () => (calDay ? calEvents.filter((e) => eventOnDay(e, calDay)) : []),
+    [calEvents, calDay]
+  );
   const newCount = useMemo(() => events.filter(isNew).length, [events]);
   const recommendations = useMemo(() => {
     const prefs = buildPreferences(Object.values(bookmarks));
@@ -94,6 +110,42 @@ export function App() {
   function openDetail(event: EventItem) {
     setSelected(event);
     handleViewDetail(event);
+  }
+
+  function renderEventCard(event: EventItem) {
+    const saved = Boolean(bookmarks[event.eventId]);
+    return (
+      <article className="enaviCard clickable" key={event.eventId} onClick={() => openDetail(event)}>
+        <div className="cardThumb">
+          {event.imageUrl
+            ? <img src={event.imageUrl} alt="" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+            : <div className="thumbPlaceholder"><CalendarDays size={28} /></div>}
+          {event.category && <span className="catBadge">{event.category}</span>}
+          {isNew(event) && <span className="newTag">NEW</span>}
+          <button
+            type="button"
+            className={saved ? "bookmarkButton saved" : "bookmarkButton"}
+            onClick={(e) => { e.stopPropagation(); toggleBookmark(event); }}
+            aria-label={saved ? "ブックマークを外す" : "ブックマークに追加"}
+            title={saved ? "ブックマークを外す" : "ブックマークに追加"}
+          >
+            {saved ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
+          </button>
+        </div>
+        <div className="cardBody">
+          <div className="cardMeta">
+            <span><MapPin size={13} />{event.venue || event.area || "地域不明"}</span>
+            <span><CalendarDays size={13} />{formatEventDate(event)}</span>
+          </div>
+          <h3>{event.title}</h3>
+          <p>{event.summary}</p>
+          <div className="cardFooter">
+            <span>{event.sourceName}</span>
+            <a href={event.url} target="_blank" rel="noreferrer" onClick={(e) => { e.stopPropagation(); handleViewDetail(event); }}>元ページ →</a>
+          </div>
+        </div>
+      </article>
+    );
   }
 
   useEffect(() => {
@@ -145,6 +197,34 @@ export function App() {
   function toggleCategory(cat: string) {
     setVisibleCount(PAGE_SIZE);
     setCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
+  }
+
+  function applyDatePreset(kind: "today" | "weekend" | "month" | "clear") {
+    setVisibleCount(PAGE_SIZE);
+    const now = new Date();
+    if (kind === "clear") {
+      setDateFrom("");
+      setDateTo("");
+      return;
+    }
+    if (kind === "today") {
+      const t = toYmd(now);
+      setDateFrom(t);
+      setDateTo(t);
+      return;
+    }
+    if (kind === "weekend") {
+      const sat = new Date(now);
+      sat.setDate(now.getDate() + ((6 - now.getDay() + 7) % 7)); // 次の土曜
+      const sun = new Date(sat);
+      sun.setDate(sat.getDate() + 1);
+      setDateFrom(toYmd(sat));
+      setDateTo(toYmd(sun));
+      return;
+    }
+    // month
+    setDateFrom(toYmd(new Date(now.getFullYear(), now.getMonth(), 1)));
+    setDateTo(toYmd(new Date(now.getFullYear(), now.getMonth() + 1, 0)));
   }
 
   async function handleEnableNotify() {
@@ -244,6 +324,13 @@ export function App() {
           </button>
           <button
             type="button"
+            className={view === "calendar" ? "viewTab active" : "viewTab"}
+            onClick={() => switchView("calendar")}
+          >
+            <CalendarDays size={15} /> カレンダー
+          </button>
+          <button
+            type="button"
             className={view === "map" ? "viewTab active" : "viewTab"}
             onClick={() => switchView("map")}
           >
@@ -276,6 +363,22 @@ export function App() {
               ))}
             </div>
           </div>
+          {view !== "calendar" && (
+            <div className="field">
+              <span><CalendarDays size={14} /> 開催日で絞り込み</span>
+              <div className="dateQuick">
+                <button type="button" className={!dateFrom && !dateTo ? "dateChip active" : "dateChip"} onClick={() => applyDatePreset("clear")}>指定なし</button>
+                <button type="button" className="dateChip" onClick={() => applyDatePreset("today")}>今日</button>
+                <button type="button" className="dateChip" onClick={() => applyDatePreset("weekend")}>今週末</button>
+                <button type="button" className="dateChip" onClick={() => applyDatePreset("month")}>今月</button>
+              </div>
+              <div className="dateRange">
+                <input type="date" value={dateFrom} onChange={(e) => { setVisibleCount(PAGE_SIZE); setDateFrom(e.target.value); }} aria-label="開始日" />
+                <span>〜</span>
+                <input type="date" value={dateTo} onChange={(e) => { setVisibleCount(PAGE_SIZE); setDateTo(e.target.value); }} aria-label="終了日" />
+              </div>
+            </div>
+          )}
           <div className="filterActions">
             <button className="primaryButton" type="submit" disabled={isBusy}>
               <Search size={16} /> 検索
@@ -331,6 +434,32 @@ export function App() {
           </section>
         )}
 
+        {view === "calendar" && (
+          <>
+            <EventCalendar
+              month={calMonth}
+              events={calEvents}
+              selectedDay={calDay}
+              onPrev={() => { setCalMonth((m) => new Date(m.getFullYear(), m.getMonth() - 1, 1)); setCalDay(null); }}
+              onNext={() => { setCalMonth((m) => new Date(m.getFullYear(), m.getMonth() + 1, 1)); setCalDay(null); }}
+              onPickDay={setCalDay}
+            />
+            {calDay ? (
+              <>
+                <p className="listStatus calSelected">{calDay} のイベント・{calDayEvents.length}件</p>
+                <div className="cardGrid">
+                  {calDayEvents.map(renderEventCard)}
+                  {calDayEvents.length === 0 && (
+                    <div className="emptyState"><CalendarDays size={34} /><p>この日のイベントはありません。</p></div>
+                  )}
+                </div>
+              </>
+            ) : (
+              <p className="calHint">数字のある日付をタップすると、その日のイベントが表示されます。上の地域・カテゴリで絞り込めます。</p>
+            )}
+          </>
+        )}
+
         {view === "map" && (
           <>
             <label className="checkboxLabel listCheckbox">
@@ -342,7 +471,7 @@ export function App() {
           </>
         )}
 
-        {view !== "map" && (
+        {view !== "map" && view !== "calendar" && (
         <>
         <div className="listHeader">
           <div>
@@ -377,41 +506,7 @@ export function App() {
         )}
 
         <div className="cardGrid">
-          {visible.map((event) => {
-            const saved = Boolean(bookmarks[event.eventId]);
-            return (
-            <article className="enaviCard clickable" key={event.eventId} onClick={() => openDetail(event)}>
-              <div className="cardThumb">
-                {event.imageUrl
-                  ? <img src={event.imageUrl} alt="" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
-                  : <div className="thumbPlaceholder"><CalendarDays size={28} /></div>}
-                {event.category && <span className="catBadge">{event.category}</span>}
-                {isNew(event) && <span className="newTag">NEW</span>}
-                <button
-                  type="button"
-                  className={saved ? "bookmarkButton saved" : "bookmarkButton"}
-                  onClick={(e) => { e.stopPropagation(); toggleBookmark(event); }}
-                  aria-label={saved ? "ブックマークを外す" : "ブックマークに追加"}
-                  title={saved ? "ブックマークを外す" : "ブックマークに追加"}
-                >
-                  {saved ? <BookmarkCheck size={18} /> : <Bookmark size={18} />}
-                </button>
-              </div>
-              <div className="cardBody">
-                <div className="cardMeta">
-                  <span><MapPin size={13} />{event.venue || event.area || "地域不明"}</span>
-                  <span><CalendarDays size={13} />{formatEventDate(event)}</span>
-                </div>
-                <h3>{event.title}</h3>
-                <p>{event.summary}</p>
-                <div className="cardFooter">
-                  <span>{event.sourceName}</span>
-                  <a href={event.url} target="_blank" rel="noreferrer" onClick={(e) => { e.stopPropagation(); handleViewDetail(event); }}>元ページ →</a>
-                </div>
-              </div>
-            </article>
-            );
-          })}
+          {visible.map(renderEventCard)}
           {visible.length === 0 && (
             <div className="emptyState">
               {view === "saved" ? <Bookmark size={34} /> : view === "history" ? <History size={34} /> : <Search size={34} />}
@@ -457,12 +552,16 @@ export function App() {
   );
 }
 
-function sortAndFilter(events: EventItem[], opts: { hidePast: boolean; sortBy: SortKey; categories: string[] }): EventItem[] {
+function sortAndFilter(
+  events: EventItem[],
+  opts: { hidePast: boolean; sortBy: SortKey; categories: string[]; dateFrom?: string; dateTo?: string }
+): EventItem[] {
   const startOfToday = new Date();
   startOfToday.setHours(0, 0, 0, 0);
 
   let list = events;
   if (opts.categories.length > 0) list = list.filter((e) => opts.categories.includes(e.category ?? "その他"));
+  if (opts.dateFrom || opts.dateTo) list = list.filter((e) => intersectsRange(e, opts.dateFrom ?? "", opts.dateTo ?? ""));
   if (opts.hidePast) {
     list = list.filter((e) => {
       const end = e.eventEndDate ?? e.eventDate;
@@ -502,4 +601,51 @@ function formatEventDate(event: EventItem): string {
 function formatMaybe(value: string): string {
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? value : new Intl.DateTimeFormat("ja-JP", { month: "short", day: "numeric" }).format(d);
+}
+
+/** イベントの開催期間 [開始, 終了] を返す。日付不明なら null */
+function eventDayRange(e: EventItem): [Date, Date] | null {
+  if (!e.eventDate) return null;
+  const start = new Date(e.eventDate);
+  if (Number.isNaN(start.getTime())) return null;
+  const end = e.eventEndDate ? new Date(e.eventEndDate) : start;
+  return [start, Number.isNaN(end.getTime()) ? start : end];
+}
+
+/** イベントの開催期間が [from, to] と重なるか。日付不明は範囲指定時は除外。 */
+function intersectsRange(e: EventItem, from: string, to: string): boolean {
+  if (!from && !to) return true;
+  const range = eventDayRange(e);
+  if (!range) return false;
+  const [start, end] = range;
+  if (from) {
+    const f = new Date(from);
+    f.setHours(0, 0, 0, 0);
+    if (end < f) return false;
+  }
+  if (to) {
+    const t = new Date(to);
+    t.setHours(23, 59, 59, 999);
+    if (start > t) return false;
+  }
+  return true;
+}
+
+/** イベントが特定の1日(YYYY-MM-DD)に開催されているか */
+function eventOnDay(e: EventItem, dayStr: string): boolean {
+  const range = eventDayRange(e);
+  if (!range) return false;
+  const [start, end] = range;
+  const d0 = new Date(dayStr);
+  d0.setHours(0, 0, 0, 0);
+  const d1 = new Date(dayStr);
+  d1.setHours(23, 59, 59, 999);
+  return end >= d0 && start <= d1;
+}
+
+function toYmd(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
