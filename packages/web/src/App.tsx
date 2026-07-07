@@ -1,6 +1,7 @@
 import { ArrowUp, Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, History, Map as MapIcon, MapPin, Search, Sparkles, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { fetchAreas, hasApiConfig, searchEvents, type EventItem } from "./api";
+import { EventDetail } from "./EventDetail";
 import { EventsMap } from "./EventsMap";
 import { enablePush, isPushSupported, notificationPermission } from "./push";
 import { buildPreferences, clearViews, loadViewedEvents, recommend, recordView, viewCount } from "./recommend";
@@ -53,6 +54,7 @@ export function App() {
   });
   const [showTop, setShowTop] = useState(false);
   const [viewTick, setViewTick] = useState(0);
+  const [selected, setSelected] = useState<EventItem | null>(null);
 
   const apiReady = hasApiConfig();
 
@@ -87,6 +89,11 @@ export function App() {
   function handleViewDetail(event: EventItem) {
     recordView(event);
     setViewTick((t) => t + 1);
+  }
+
+  function openDetail(event: EventItem) {
+    setSelected(event);
+    handleViewDetail(event);
   }
 
   useEffect(() => {
@@ -298,13 +305,13 @@ export function App() {
               {recommendations.map((event) => {
                 const saved = Boolean(bookmarks[event.eventId]);
                 return (
-                  <article className="recoCard" key={event.eventId}>
+                  <article className="recoCard clickable" key={event.eventId} onClick={() => openDetail(event)}>
                     <div className="recoCardHead">
                       {event.category && <span className="recoCat">{event.category}</span>}
                       <button
                         type="button"
                         className={saved ? "recoBookmark saved" : "recoBookmark"}
-                        onClick={() => toggleBookmark(event)}
+                        onClick={(e) => { e.stopPropagation(); toggleBookmark(event); }}
                         aria-label={saved ? "ブックマークを外す" : "ブックマークに追加"}
                         title={saved ? "ブックマークを外す" : "ブックマークに追加"}
                       >
@@ -316,7 +323,7 @@ export function App() {
                       <span><MapPin size={12} />{event.area || "地域不明"}</span>
                       <span><CalendarDays size={12} />{formatEventDate(event)}</span>
                     </div>
-                    <a href={event.url} target="_blank" rel="noreferrer" onClick={() => handleViewDetail(event)}>詳細 →</a>
+                    <a href={event.url} target="_blank" rel="noreferrer" onClick={(e) => { e.stopPropagation(); handleViewDetail(event); }}>元ページ →</a>
                   </article>
                 );
               })}
@@ -373,7 +380,7 @@ export function App() {
           {visible.map((event) => {
             const saved = Boolean(bookmarks[event.eventId]);
             return (
-            <article className="enaviCard" key={event.eventId}>
+            <article className="enaviCard clickable" key={event.eventId} onClick={() => openDetail(event)}>
               <div className="cardThumb">
                 {event.imageUrl
                   ? <img src={event.imageUrl} alt="" loading="lazy" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
@@ -383,7 +390,7 @@ export function App() {
                 <button
                   type="button"
                   className={saved ? "bookmarkButton saved" : "bookmarkButton"}
-                  onClick={() => toggleBookmark(event)}
+                  onClick={(e) => { e.stopPropagation(); toggleBookmark(event); }}
                   aria-label={saved ? "ブックマークを外す" : "ブックマークに追加"}
                   title={saved ? "ブックマークを外す" : "ブックマークに追加"}
                 >
@@ -399,7 +406,7 @@ export function App() {
                 <p>{event.summary}</p>
                 <div className="cardFooter">
                   <span>{event.sourceName}</span>
-                  <a href={event.url} target="_blank" rel="noreferrer" onClick={() => handleViewDetail(event)}>詳細 →</a>
+                  <a href={event.url} target="_blank" rel="noreferrer" onClick={(e) => { e.stopPropagation(); handleViewDetail(event); }}>元ページ →</a>
                 </div>
               </div>
             </article>
@@ -436,6 +443,15 @@ export function App() {
         <button className="scrollTopBtn" type="button" onClick={scrollToTop} aria-label="ページの先頭へ戻る" title="上へ戻る">
           <ArrowUp size={22} />
         </button>
+      )}
+
+      {selected && (
+        <EventDetail
+          event={selected}
+          saved={Boolean(bookmarks[selected.eventId])}
+          onClose={() => setSelected(null)}
+          onToggleBookmark={toggleBookmark}
+        />
       )}
     </div>
   );
