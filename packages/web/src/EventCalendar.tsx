@@ -1,6 +1,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useMemo } from "react";
 import type { EventItem } from "./api";
+import { categoryColor } from "./categoryColors";
 
 type Props = {
   month: Date; // 表示中の月（1日）
@@ -20,9 +21,11 @@ function ymd(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/** 各日のイベント件数を集計（開催期間 [eventDate, eventEndDate] の各日をカウント） */
-function countByDay(events: EventItem[], monthStart: Date, monthEnd: Date): Record<string, number> {
-  const counts: Record<string, number> = {};
+type DayInfo = { count: number; categories: string[] };
+
+/** 各日のイベント件数と、その日に含まれるカテゴリ一覧を集計（開催期間の各日に反映） */
+function infoByDay(events: EventItem[], monthStart: Date, monthEnd: Date): Record<string, DayInfo> {
+  const map: Record<string, { count: number; cats: Set<string> }> = {};
   for (const e of events) {
     if (!e.eventDate) continue;
     const start = new Date(e.eventDate);
@@ -30,27 +33,33 @@ function countByDay(events: EventItem[], monthStart: Date, monthEnd: Date): Reco
     const end = e.eventEndDate ? new Date(e.eventEndDate) : start;
     const from = start < monthStart ? new Date(monthStart) : new Date(start);
     const to = (Number.isNaN(end.getTime()) ? start : end) > monthEnd ? new Date(monthEnd) : new Date(Number.isNaN(end.getTime()) ? start : end);
+    const cat = (e.category ?? "").trim() || "その他";
     for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
       const key = ymd(d);
-      counts[key] = (counts[key] ?? 0) + 1;
+      const cur = map[key] ?? { count: 0, cats: new Set<string>() };
+      cur.count += 1;
+      cur.cats.add(cat);
+      map[key] = cur;
     }
   }
-  return counts;
+  const result: Record<string, DayInfo> = {};
+  for (const [k, v] of Object.entries(map)) result[k] = { count: v.count, categories: [...v.cats] };
+  return result;
 }
 
 export function EventCalendar({ month, events, selectedDay, onPrev, onNext, onPickDay }: Props) {
-  const { cells, counts, todayStr } = useMemo(() => {
+  const { cells, info, todayStr } = useMemo(() => {
     const year = month.getFullYear();
     const mon = month.getMonth();
     const monthStart = new Date(year, mon, 1);
     const monthEnd = new Date(year, mon + 1, 0);
-    const counts = countByDay(events, monthStart, monthEnd);
+    const info = infoByDay(events, monthStart, monthEnd);
     const leading = monthStart.getDay(); // 先頭の空白（日曜始まり）
     const total = monthEnd.getDate();
     const cells: Array<{ day: number; key: string } | null> = [];
     for (let i = 0; i < leading; i++) cells.push(null);
     for (let d = 1; d <= total; d++) cells.push({ day: d, key: ymd(new Date(year, mon, d)) });
-    return { cells, counts, todayStr: ymd(new Date()) };
+    return { cells, info, todayStr: ymd(new Date()) };
   }, [month, events]);
 
   const label = `${month.getFullYear()}年${month.getMonth() + 1}月`;
@@ -70,7 +79,9 @@ export function EventCalendar({ month, events, selectedDay, onPrev, onNext, onPi
       <div className="calGrid">
         {cells.map((cell, i) => {
           if (!cell) return <div key={`b${i}`} className="calCell empty" />;
-          const count = counts[cell.key] ?? 0;
+          const dayInfo = info[cell.key];
+          const count = dayInfo?.count ?? 0;
+          const cats = dayInfo?.categories ?? [];
           const isToday = cell.key === todayStr;
           const isSelected = cell.key === selectedDay;
           const dow = i % 7;
@@ -91,7 +102,14 @@ export function EventCalendar({ month, events, selectedDay, onPrev, onNext, onPi
               aria-label={`${cell.day}日 イベント${count}件`}
             >
               <span className="calDay">{cell.day}</span>
-              {count > 0 && <span className="calCount">{count}</span>}
+              {cats.length > 0 && (
+                <span className="calBars">
+                  {cats.slice(0, 3).map((c) => (
+                    <i key={c} className="calBar" style={{ background: categoryColor(c) }} />
+                  ))}
+                  {cats.length > 3 && <em className="calMore">+{cats.length - 3}</em>}
+                </span>
+              )}
             </button>
           );
         })}

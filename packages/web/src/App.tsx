@@ -1,6 +1,7 @@
-import { ArrowUp, Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, History, Map as MapIcon, MapPin, Search, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUp, Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ChevronRight, History, Map as MapIcon, MapPin, Search, Sparkles, Trash2 } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { fetchAreas, hasApiConfig, searchEvents, type EventItem } from "./api";
+import { categoryColor } from "./categoryColors";
 import { EventCalendar } from "./EventCalendar";
 import { EventDetail } from "./EventDetail";
 import { EventsMap } from "./EventsMap";
@@ -63,6 +64,7 @@ export function App() {
     return new Date(d.getFullYear(), d.getMonth(), 1);
   });
   const [calDay, setCalDay] = useState<string | null>(null);
+  const [openCats, setOpenCats] = useState<Set<string>>(new Set());
 
   const apiReady = hasApiConfig();
 
@@ -94,6 +96,7 @@ export function App() {
     () => (calDay ? calEvents.filter((e) => eventOnDay(e, calDay)) : []),
     [calEvents, calDay]
   );
+  const dayGroups = useMemo(() => groupByCategory(calDayEvents, CATEGORIES), [calDayEvents]);
   const newCount = useMemo(() => events.filter(isNew).length, [events]);
   const recommendations = useMemo(() => {
     const prefs = buildPreferences(Object.values(bookmarks));
@@ -163,6 +166,10 @@ export function App() {
   }, [fontScale]);
 
   useEffect(() => {
+    setOpenCats(new Set()); // 別の日を選んだらカテゴリは畳む
+  }, [calDay]);
+
+  useEffect(() => {
     const onScroll = () => setShowTop(window.scrollY > 400);
     window.addEventListener("scroll", onScroll, { passive: true });
     onScroll();
@@ -197,6 +204,15 @@ export function App() {
   function toggleCategory(cat: string) {
     setVisibleCount(PAGE_SIZE);
     setCategories((prev) => (prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]));
+  }
+
+  function toggleCat(category: string) {
+    setOpenCats((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
   }
 
   function applyDatePreset(kind: "today" | "weekend" | "month" | "clear") {
@@ -447,15 +463,36 @@ export function App() {
             {calDay ? (
               <>
                 <p className="listStatus calSelected">{calDay} のイベント・{calDayEvents.length}件</p>
-                <div className="cardGrid">
-                  {calDayEvents.map(renderEventCard)}
-                  {calDayEvents.length === 0 && (
-                    <div className="emptyState"><CalendarDays size={34} /><p>この日のイベントはありません。</p></div>
-                  )}
-                </div>
+                {dayGroups.length === 0 ? (
+                  <div className="emptyState"><CalendarDays size={34} /><p>この日のイベントはありません。</p></div>
+                ) : (
+                  <div className="catGroups">
+                    {dayGroups.map((g) => {
+                      const open = openCats.has(g.category);
+                      const color = categoryColor(g.category);
+                      return (
+                        <div className="catGroup" key={g.category}>
+                          <button
+                            type="button"
+                            className="catGroupHead"
+                            style={{ borderLeftColor: color }}
+                            onClick={() => toggleCat(g.category)}
+                            aria-expanded={open}
+                          >
+                            <span className="catDot" style={{ background: color }} />
+                            <span className="catGroupName">{g.category}</span>
+                            <span className="catGroupCount">{g.events.length}件</span>
+                            {open ? <ChevronDown size={18} /> : <ChevronRight size={18} />}
+                          </button>
+                          {open && <div className="cardGrid">{g.events.map(renderEventCard)}</div>}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </>
             ) : (
-              <p className="calHint">数字のある日付をタップすると、その日のイベントが表示されます。上の地域・カテゴリで絞り込めます。</p>
+              <p className="calHint">色バーのある日付をタップすると、その日のイベントがカテゴリ別に表示されます（カテゴリを押すと開きます）。上の地域・カテゴリでも絞り込めます。</p>
             )}
           </>
         )}
@@ -648,4 +685,23 @@ function toYmd(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
   return `${y}-${m}-${day}`;
+}
+
+/** イベントをカテゴリごとにまとめる（指定した順序で並べ、未知カテゴリは末尾） */
+function groupByCategory(events: EventItem[], order: string[]): Array<{ category: string; events: EventItem[] }> {
+  const map = new Map<string, EventItem[]>();
+  for (const e of events) {
+    const c = (e.category ?? "").trim() || "その他";
+    if (!map.has(c)) map.set(c, []);
+    map.get(c)!.push(e);
+  }
+  const ordered: Array<{ category: string; events: EventItem[] }> = [];
+  for (const c of order) {
+    if (map.has(c)) {
+      ordered.push({ category: c, events: map.get(c)! });
+      map.delete(c);
+    }
+  }
+  for (const [c, evs] of map) ordered.push({ category: c, events: evs });
+  return ordered;
 }

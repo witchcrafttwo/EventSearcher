@@ -1058,19 +1058,88 @@
   border-color: #ea580c;
 }
 
-.calCell.selected .calDay,
-.calCell.selected .calCount {
+.calCell.selected .calDay {
   color: #fff;
 }
 
-.calCount {
-  font-size: 10px;
+/* 日セル内のカテゴリ色バー（Googleカレンダー風） */
+.calBars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 78%;
+  align-items: stretch;
+}
+
+.calBar {
+  display: block;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.calMore {
+  font-size: 9px;
+  font-style: normal;
+  color: #94a3b8;
+  line-height: 1;
+}
+
+.calCell.selected .calMore {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* カテゴリ別グループ（折りたたみ） */
+.catGroups {
+  display: grid;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.catGroup {
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.catGroupHead {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  border: none;
+  border-left: 4px solid #64748b;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+}
+
+.catGroupHead:hover {
+  background: #f8fafc;
+}
+
+.catDot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.catGroupName {
   font-weight: 700;
-  color: #c2410c;
-  background: rgba(234, 88, 12, 0.12);
-  border-radius: 999px;
-  padding: 0 6px;
-  line-height: 15px;
+  color: #0f172a;
+  font-size: calc(14px * var(--fs, 1));
+}
+
+.catGroupCount {
+  margin-left: auto;
+  font-size: 12px;
+  color: #64748b;
+}
+
+.catGroup .cardGrid {
+  padding: 0 12px 12px;
 }
 
 .calSelected {
