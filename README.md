@@ -11,13 +11,17 @@
 
 ### ユーザー画面（`/`）
 - 市町 × カテゴリ（複数選択）でイベントを検索
+- **日付で絞り込み**（今日 / 今週末 / 今月 / 期間指定）
 - 開催日/新着で並び替え、終了イベントの非表示
-- ブックマーク（localStorage保存）
+- **イベント詳細モーダル**（カードをタップで拡大表示。詳しい説明＋会場のミニ地図＋元ページ/地図アプリへのリンク）
+- **カレンダー表示**（月表示・日ごとにカテゴリを色分け表示。日をタップするとカテゴリ別に展開）
+- **地図表示**（現在地を中心に、イベントを地図ピンで表示。クラスタリング＋地域/カテゴリで絞り込み）
+- **ブックマーク**（localStorage保存）と **閲覧履歴**（タブで確認・消去可）
 - 新着イベントの **NEW** タグ（収集から7日以内）
 - **Web Push 通知**（選んだ地域・カテゴリの新着をお知らせ）
 - **あなたにおすすめ**（ブックマーク・閲覧履歴からカテゴリ/エリアの好みを推定して提案。すべてローカルで完結）
 - **文字サイズ変更（小・中・大）** と **トップへ戻るボタン**（ユーザビリティ配慮、設定はlocalStorage保存）
-- テーマカラーは愛媛(みかん)のオレンジ系
+- スマホ最適化（タブ横スクロール・1カラム・全画面モーダル等）、テーマカラーは愛媛(みかん)のオレンジ系
 
 ### 管理画面（`/admin`、`ADMIN_TOKEN` で保護）
 - 情報源（URL）の登録・削除・表示ON/OFF
@@ -33,13 +37,15 @@
 ## アーキテクチャ
 
 ```
-[登録サイト] → スクレイパー(Hono) → Bedrock GLM-5(要約/分類/日付・エリア抽出)
-     → DynamoDB → API(/events 等) → React PWA(ユーザー/管理画面)
-              ↑ Cron が定期実行（Vercel Cron または node-cron）
+[登録サイト] → スクレイパー(Hono) → Bedrock GLM-5(要約/分類/日付/会場・住所抽出)
+     → 住所をジオコーディング(OSM Nominatim) → DynamoDB
+     → API(/events 等) → React PWA(一覧/カレンダー/地図/詳細)
+              ↑ 収集はローカルCLI(npm run ingest) または Cron(Vercel/node-cron)
 ```
 
 - AWS SDK を使わず **aws4fetch（SigV4署名）** で DynamoDB / Bedrock を直接呼び出し、軽量化
 - AI は **Amazon Bedrock 上の GLM-5**（`zai.glm-5`, ap-northeast-1）。並列化はしない（GLM-5が並列に弱いため直列処理）
+- AIが会場名・住所も抽出し、**OpenStreetMap Nominatim** でジオコーディングして緯度経度を保存（地図の会場ピン用）
 
 ## 技術スタック
 
@@ -49,7 +55,10 @@
 | API | TypeScript / Hono |
 | AI | Amazon Bedrock（GLM-5 / `zai.glm-5`） |
 | DB | Amazon DynamoDB（ap-northeast-1） |
+| 地図 | Leaflet + OpenStreetMap / leaflet.markercluster |
+| ジオコーディング | OpenStreetMap Nominatim（無料・キー不要） |
 | 通知 | Web Push（web-push + VAPID） |
+| スクレイピング | fast-xml-parser / 正規表現ベース |
 | ホスティング | Vercel（本番）/ 自宅サーバー等（Node）に移行可能 |
 | IaC | AWS CDK（DynamoDBテーブル定義） |
 
@@ -71,9 +80,9 @@ vercel.json … /api/* → API、それ以外 → SPA(index.html) のルーテ�
 
 DynamoDB テーブル（すべて ap-northeast-1）:
 - `PROFILES_TABLE`（profileId）
-- `EVENTS_TABLE`（eventId、GSI: `publishedAtIndex` = eventType×publishedAt）
+- `EVENTS_TABLE`（eventId、GSI: `publishedAtIndex` = eventType×publishedAt。イベントは要約・カテゴリ・開催日・**会場名/住所/緯度経度**・画像URL等を保持）
 - `SUBSCRIPTIONS_TABLE`（profileId × endpointHash）
-- `SOURCES_TABLE`（id）
+- `SOURCES_TABLE`（id。表示ON/OFF・固定カテゴリ・画像ON/OFF・メモ・収集ヘルス情報）
 
 ---
 
@@ -129,6 +138,21 @@ npm run typecheck            # 全workspace
 npm run build                # 全workspace
 npm run build --workspace @prefecture-events-ai/web   # フロントのみ → packages/web/dist
 ```
+
+### 収集（ローカルCLI・推奨）
+Vercelの60秒制限を避けるため、**収集はローカルで時間無制限に実行**するのが基本です。DynamoDB はクラウド共有なので、ローカル収集の結果はそのまま本番サイトに反映されます。
+
+```bash
+# 全ソースを新規収集（時間制限なし）
+npm run ingest
+# 既存も上書き再収集（会場名/住所/座標の後付け等）
+npm run ingest -- --force
+# 特定サイトのみ
+npm run ingest -- --source <sourceId>
+```
+
+- 認証情報は `packages/worker/.dev.vars`（または `.env`）から読み込みます。**Vercelと同じテーブル名・リージョン・AWSアカウント**を指していること。
+- 管理画面（HTTP経由）の「今すぐ収集」は Vercel対策で `maxMs=50000`（50秒）cap。`/admin/ingest?maxMs=...` で調整可、未指定なら無制限。
 
 ---
 

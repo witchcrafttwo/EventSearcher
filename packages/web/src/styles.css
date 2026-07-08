@@ -779,3 +779,16 @@ button:disabled {
   opacity: 0.5;
   cursor: default;
 }
+
+/* 管理画面のスマホ調整 */
+@media (max-width: 640px) {
+  .workspace { width: min(100% - 20px, 100%); padding: 16px 0; }
+  .sourceRow { flex-wrap: wrap; }
+  .sourceInfo { flex: 1 1 100%; order: 3; }
+  .sourceRow .iconButton { width: 40px; height: 40px; }
+  .sourceNote { max-width: 100%; }
+  .eventList { max-height: 320px; }
+  .eventList li { flex-wrap: wrap; }
+  .dangerRow { flex-wrap: wrap; }
+  .breakdownTag { font-size: 10px; }
+}

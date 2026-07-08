@@ -1170,3 +1170,99 @@
   font-size: calc(13px * var(--fs, 1));
   color: #64748b;
 }
+
+/* ===== スマホ最適化 ===== */
+@media (max-width: 640px) {
+  .enaviMain { padding: 14px; }
+  .enaviHeaderInner { padding: 16px 14px; gap: 10px; }
+  .enaviHeader h1 { font-size: 20px; }
+  .enaviHeader p { font-size: 12px; }
+
+  /* タブは横スクロールで1行を維持（スワイプで切替） */
+  .viewTabs {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 4px;
+    margin-left: -2px;
+    margin-right: -2px;
+    scrollbar-width: none;
+  }
+  .viewTabs::-webkit-scrollbar { display: none; }
+  .viewTab {
+    flex-shrink: 0;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .filterCard { padding: 12px; border-radius: 12px; }
+  .filterActions { flex-wrap: wrap; }
+  .filterActions .primaryButton,
+  .filterActions .ghostButton {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  .dateRange { flex-wrap: wrap; }
+  .dateRange input { flex: 1 1 42%; min-width: 0; }
+  .dateQuick { gap: 6px; }
+
+  /* 一覧は1カラム */
+  .cardGrid { grid-template-columns: 1fr; gap: 12px; }
+
+  .listHeader { gap: 8px; }
+  .sortLabel { flex: 1 1 auto; justify-content: flex-end; }
+
+  /* おすすめカードは少し小さめ */
+  .recoSection { padding: 12px; }
+  .recoCard { flex-basis: 200px; }
+
+  /* カレンダーはコンパクトに */
+  .calendar { padding: 10px; }
+  .calGrid { gap: 3px; }
+  .calCell { min-height: 56px; padding: 3px; gap: 2px; }
+  .calCell .calDay { font-size: 12px; }
+  .calCat { font-size: 8px; padding: 1px 3px; }
+  .calCatMore { font-size: 8px; }
+  .calLabel { font-size: 16px; min-width: 96px; }
+  .calWd { font-size: 11px; }
+
+  /* 地図は画面高に合わせる */
+  .eventsMap { height: 60vh; min-height: 320px; }
+
+  /* 詳細モーダルはほぼ全画面（下崩れ防止） */
+  .detailOverlay { padding: 0; }
+  .detailModal {
+    width: 100%;
+    min-height: 100vh;
+    margin: 0;
+    border-radius: 0;
+  }
+  .detailBody { padding: 16px 16px 28px; }
+  .detailModal h2 { font-size: calc(18px * var(--fs, 1)); }
+  .detailMap { height: 200px; }
+  .detailActions .detailPrimary,
+  .detailActions .detailGhost {
+    flex: 1 1 auto;
+    justify-content: center;
+  }
+
+  /* カテゴリ別グループ内のカードも1カラム */
+  .catGroup .cardGrid { grid-template-columns: 1fr; }
+
+  /* トップへ戻るボタンは少し小さく */
+  .scrollTopBtn { width: 44px; height: 44px; right: 14px; bottom: 14px; }
+}
+
+/* さらに狭い端末（〜380px）向けの微調整 */
+@media (max-width: 380px) {
+  .calCat { font-size: 0; padding: 3px; } /* 名前が入らない極小幅では色だけのバーに */
+  .calCat::before {
+    content: "";
+    display: block;
+    height: 4px;
+    border-radius: 2px;
+    background: currentColor;
+  }
+  .calCell { min-height: 48px; }
+}
