@@ -16,6 +16,18 @@ const webDistDir = resolve(process.env.WEB_DIST_DIR ?? join(process.cwd(), "pack
 
 app.use(express.json({ limit: "1mb" }));
 
+// 管理系API(/admin/*)はトークン保護。ADMIN_TOKEN未設定なら素通り(ローカル開発用)。
+// worker(Hono)側と同じ ADMIN_TOKEN / Bearer 方式に合わせている。
+const adminAuth: express.RequestHandler = (request, response, next) => {
+  const token = process.env.ADMIN_TOKEN;
+  if (token && request.headers.authorization !== `Bearer ${token}`) {
+    response.status(401).json({ message: "unauthorized" });
+    return;
+  }
+  next();
+};
+app.use("/admin", adminAuth);
+
 app.get("/health", (_request, response) => {
   response.json({ ok: true });
 });
