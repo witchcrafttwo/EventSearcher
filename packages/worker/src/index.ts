@@ -494,7 +494,7 @@ function buildImageHiddenMatcher(sources: EventSourceConfig[]): (event: EventRec
 function buildForcedCategory(sources: EventSourceConfig[]): (event: EventRecord) => string | undefined {
   const forced = sources.filter((s) => s.forceCategory);
   const byId = new Map(forced.map((s) => [s.id, s.forceCategory as string]));
-  const byHost = new Map(forced.map((s) => [hostOf(s.url), s.forceCategory as string]).filter(([h]) => h));
+  const byHost = new Map(forced.map((s): [string, string] => [hostOf(s.url), s.forceCategory as string]).filter(([h]) => h));
   return (event) => byId.get(event.sourceId) ?? byHost.get(hostOf(event.url));
 }
 

@@ -116,7 +116,7 @@ function hostOf(url: string): string {
  * 定期収集(Cron)用。登録ソースを1つずつ順番に処理する。
  * 1サイトでエラーが出ても止めず、各ソースの新規処理には上限を付けて1回の実行を軽く保つ。
  */
-export async function runScheduledIngest(env: Env, perSourceLimit = 10): Promise<void> {
+export async function runScheduledIngest(env: Env, perSourceLimit = Number.POSITIVE_INFINITY): Promise<void> {
   if (isDiscoveryEnabled(env)) {
     await runIngest(env).catch((error) => console.error("scheduled ingest (discovery) failed", error));
     return;
@@ -203,23 +203,6 @@ function matchesForNotification(event: EventRecord, profile?: UserProfile): bool
 
 function createEventId(sourceId: string, url: string, title: string): Promise<string> {
   return sha256Hex(`${sourceId}:${url}:${title}`);
-}
-
-// デパート/ショッピングモール等の商業施設ソース。ここに一致したら category を「デパート・モール」に固定する。
-const MALL_HOST_PATTERNS = ["emifull", "aeonmall", "aeon", "izumi", "yumetown", "ario", "parco", "mitsukoshi", "takashimaya", "fuji-crecia", "fujgrand", "youme"];
-
-/** 候補が商業施設(デパート/モール)由来かをホスト名で判定 */
-function isMallSource(candidate: RawEventCandidate): boolean {
-  const hay = `${hostOfUrl(candidate.sourceUrl)} ${hostOfUrl(candidate.url)}`.toLowerCase();
-  return MALL_HOST_PATTERNS.some((pattern) => hay.includes(pattern));
-}
-
-function hostOfUrl(url: string): string {
-  try {
-    return new URL(url).host;
-  } catch {
-    return url;
-  }
 }
 
 /** 候補の詳細ページを取得し、本文テキストを snippet に、代表画像を imageUrl に詰める */
