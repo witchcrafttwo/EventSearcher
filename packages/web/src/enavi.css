@@ -83,6 +83,63 @@
   gap: 12px;
 }
 
+/* キーワード検索バー（一覧タブのみ表示） */
+.searchBar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 0 14px;
+  height: 48px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  color: #64748b;
+}
+
+.searchBar:focus-within {
+  border-color: #ea580c;
+  box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
+}
+
+.searchBar input {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 15px;
+  color: #0f172a;
+}
+
+.searchBar input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.searchClear {
+  flex: 0 0 auto;
+  width: 26px;
+  height: 26px;
+  border: 0;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #475569;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.searchClear:hover {
+  background: #cbd5e1;
+}
+
+.searchHint {
+  margin: 8px 2px 0;
+  font-size: 12px;
+  color: #64748b;
+}
+
 .filterRow {
   display: flex;
   gap: 12px;
@@ -498,6 +555,8 @@
 .enavi .newBadge { font-size: calc(14px * var(--fs)); }
 .enavi .field { font-size: calc(13px * var(--fs)); }
 .enavi .field select { font-size: calc(15px * var(--fs)); }
+.enavi .searchBar input { font-size: calc(15px * var(--fs)); }
+.enavi .searchHint { font-size: calc(12px * var(--fs)); }
 .enavi .categoryChip { font-size: calc(13px * var(--fs)); }
 .enavi .viewTab { font-size: calc(13px * var(--fs)); }
 .enavi .checkboxLabel { font-size: calc(13px * var(--fs)); }
@@ -1194,6 +1253,10 @@
     padding: 8px 12px;
     font-size: 12px;
   }
+
+  /* 検索バーはコンパクトに。16px未満だとiOSで自動ズームするため下限を設ける */
+  .searchBar { height: 44px; padding: 0 12px; gap: 8px; }
+  .enavi .searchBar input { font-size: max(16px, calc(15px * var(--fs))); }
 
   .filterCard { padding: 12px; border-radius: 12px; }
   .filterActions { flex-wrap: wrap; }

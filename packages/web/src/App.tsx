@@ -7,6 +7,7 @@ import { EventDetail } from "./EventDetail";
 import { EventsMap } from "./EventsMap";
 import { enablePush, isPushSupported, notificationPermission } from "./push";
 import { buildPreferences, clearViews, loadViewedEvents, recommend, recordView, viewCount } from "./recommend";
+import { filterByKeywords } from "./search";
 
 // 愛媛県内20市町
 const EHIME_AREAS = [
@@ -37,6 +38,8 @@ function loadBookmarks(): Record<string, EventItem> {
 
 export function App() {
   const [area, setArea] = useState(() => localStorage.getItem(AREA_KEY) ?? "");
+  // キーワード検索。仕様どおり保存しない（localStorage/URLへ書かない）ので再読み込みで空に戻る。
+  const [keyword, setKeyword] = useState("");
   const [categories, setCategories] = useState<string[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [status, setStatus] = useState("地域やカテゴリを選んで検索できます。");
@@ -77,16 +80,23 @@ export function App() {
   const bookmarkCount = Object.keys(bookmarks).length;
   const viewedEvents = useMemo(() => loadViewedEvents(), [viewTick, view]);
   const historyCount = useMemo(() => viewCount(), [viewTick, view]);
+  // キーワードは一覧タブ（すべて/ブックマーク/閲覧履歴）だけに効かせる。
+  // マップも filtered を使うので、地図に検索が効かないよう明示的に除外する。
+  const searchable = view === "all" || view === "saved" || view === "history";
+  const trimmedKeyword = keyword.trim();
   const filtered = useMemo(() => {
+    const kw = searchable ? keyword : "";
     if (view === "history") {
       // 履歴は閲覧順を維持。カテゴリ絞り込みのみ適用（終了済みも表示する）
-      return categories.length > 0
+      const base = categories.length > 0
         ? viewedEvents.filter((e) => categories.includes(e.category ?? "その他"))
         : viewedEvents;
+      return filterByKeywords(base, kw);
     }
     const baseList = view === "saved" ? Object.values(bookmarks) : events;
-    return sortAndFilter(baseList, { hidePast, sortBy, categories, dateFrom, dateTo });
-  }, [view, viewedEvents, bookmarks, events, hidePast, sortBy, categories, dateFrom, dateTo]);
+    const sorted = sortAndFilter(baseList, { hidePast, sortBy, categories, dateFrom, dateTo });
+    return filterByKeywords(sorted, kw);
+  }, [view, searchable, keyword, viewedEvents, bookmarks, events, hidePast, sortBy, categories, dateFrom, dateTo]);
   const visible = filtered.slice(0, visibleCount);
   const calEvents = useMemo(
     () => (categories.length ? events.filter((e) => categories.includes(e.category ?? "その他")) : events),
@@ -266,8 +276,11 @@ export function App() {
 
   function handleReset() {
     setArea("");
+    setKeyword("");
     setCategories([]);
     setSortBy("dateAsc");
+    setDateFrom("");
+    setDateTo("");
     setVisibleCount(PAGE_SIZE);
     localStorage.removeItem(AREA_KEY);
     void runSearch("");
@@ -353,6 +366,33 @@ export function App() {
             <MapIcon size={15} /> マップ
           </button>
         </div>
+
+        {searchable && (
+          <div className="searchBar">
+            <Search size={18} aria-hidden="true" />
+            <input
+              type="search"
+              value={keyword}
+              onChange={(e) => { setVisibleCount(PAGE_SIZE); setKeyword(e.target.value); }}
+              placeholder="イベント名・会場・内容で検索（例: 花火 マルシェ）"
+              aria-label="キーワードで検索"
+            />
+            {trimmedKeyword && (
+              <button
+                type="button"
+                className="searchClear"
+                onClick={() => { setVisibleCount(PAGE_SIZE); setKeyword(""); }}
+                aria-label="キーワードを消す"
+                title="キーワードを消す"
+              >
+                ×
+              </button>
+            )}
+          </div>
+        )}
+        {searchable && trimmedKeyword && (
+          <p className="searchHint">複数の語はスペース区切りで、どれかに当てはまるイベントを表示します。</p>
+        )}
 
         <form className="filterCard" onSubmit={handleSubmit} hidden={view === "saved" || view === "history"}>
           <div className="filterRow">
@@ -514,7 +554,8 @@ export function App() {
           <div>
             <p className="newBadge"><Sparkles size={14} /> 新着イベント {newCount}</p>
             <p className="listStatus">
-              {view === "saved" ? "ブックマーク一覧" : view === "history" ? "閲覧履歴（新しい順）" : status}・{filtered.length}件
+              {view === "saved" ? "ブックマーク一覧" : view === "history" ? "閲覧履歴（新しい順）" : status}
+              {trimmedKeyword && `・「${trimmedKeyword}」で検索`}・{filtered.length}件
             </p>
           </div>
           {view === "history" ? (
@@ -546,14 +587,23 @@ export function App() {
           {visible.map(renderEventCard)}
           {visible.length === 0 && (
             <div className="emptyState">
-              {view === "saved" ? <Bookmark size={34} /> : view === "history" ? <History size={34} /> : <Search size={34} />}
-              <p>
-                {view === "saved"
-                  ? "まだブックマークがありません。気になるイベントの🔖を押すとここに保存されます。"
-                  : view === "history"
-                    ? "まだ閲覧履歴がありません。イベントの「詳細 →」を開くとここに残ります。"
-                    : "該当するイベントがありません。"}
-              </p>
+              {trimmedKeyword ? <Search size={34} /> : view === "saved" ? <Bookmark size={34} /> : view === "history" ? <History size={34} /> : <Search size={34} />}
+              {trimmedKeyword ? (
+                <>
+                  <p>「{trimmedKeyword}」に一致するイベントは見つかりませんでした。</p>
+                  <button className="ghostButton" type="button" onClick={() => { setVisibleCount(PAGE_SIZE); setKeyword(""); }}>
+                    キーワードを解除して一覧に戻る
+                  </button>
+                </>
+              ) : (
+                <p>
+                  {view === "saved"
+                    ? "まだブックマークがありません。気になるイベントの🔖を押すとここに保存されます。"
+                    : view === "history"
+                      ? "まだ閲覧履歴がありません。イベントの「詳細 →」を開くとここに残ります。"
+                      : "該当するイベントがありません。"}
+                </p>
+              )}
             </div>
           )}
         </div>
