@@ -368,8 +368,8 @@ export function App() {
         </div>
 
         {searchable && (
-          <div className="searchArea">
-            <div className="searchBar">
+          <div className="kwSearch">
+            <div className="kwSearchBar">
               <Search size={18} aria-hidden="true" />
               <input
                 type="search"
@@ -381,7 +381,7 @@ export function App() {
               {trimmedKeyword && (
                 <button
                   type="button"
-                  className="searchClear"
+                  className="kwSearchClear"
                   onClick={() => { setVisibleCount(PAGE_SIZE); setKeyword(""); }}
                   aria-label="キーワードを消す"
                   title="キーワードを消す"
@@ -391,7 +391,7 @@ export function App() {
               )}
             </div>
             {trimmedKeyword && (
-              <p className="searchHint">スペースで区切ると、どれかに当てはまるイベントを表示します。</p>
+              <p className="kwSearchHint">スペースで区切ると、どれかに当てはまるイベントを表示します。</p>
             )}
           </div>
         )}

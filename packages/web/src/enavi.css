@@ -90,15 +90,18 @@
 }
 
 /* キーワード検索バー（一覧タブのみ表示）
+   注意: styles.css に管理画面用の .searchBar / .searchArea が既にあり、
+   両方のCSSがグローバルに読み込まれる。同名にすると flex-wrap や margin、
+   color が漏れ込んで崩れるため、kwSearch* という専用のクラス名を使う。
    .enaviMain は素のブロックなので、下の .filterCard と密着しないよう
-   検索バーと補助文をまとめた .searchArea 側で余白を固定する。 */
-.searchArea {
+   外側の .kwSearch 側で余白を固定する。 */
+.kwSearch {
   display: grid;
   gap: 6px;
   margin-bottom: 14px;
 }
 
-.searchBar {
+.kwSearchBar {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -111,27 +114,36 @@
   color: #64748b;
 }
 
-.searchBar:focus-within {
+.kwSearchBar:focus-within {
   border-color: #ea580c;
   box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.15);
 }
 
-.searchBar input {
+/* styles.css のグローバル input 指定（width/min-height/padding/border/radius）を
+   打ち消す。特に padding: 0 12px が残るとアイコンと文字の間がずれる。 */
+.kwSearchBar input {
   flex: 1 1 auto;
   min-width: 0;
+  width: auto;
   height: 100%;
+  min-height: 0;
+  margin: 0;
+  padding: 0;
   border: 0;
+  border-radius: 0;
   outline: none;
   background: transparent;
   font-size: 15px;
   color: #0f172a;
+  -webkit-appearance: none;
+  appearance: none;
 }
 
-.searchBar input::-webkit-search-cancel-button {
+.kwSearchBar input::-webkit-search-cancel-button {
   display: none;
 }
 
-.searchClear {
+.kwSearchClear {
   flex: 0 0 auto;
   display: grid;
   place-items: center;
@@ -145,11 +157,11 @@
   cursor: pointer;
 }
 
-.searchClear:hover {
+.kwSearchClear:hover {
   background: #cbd5e1;
 }
 
-.searchHint {
+.kwSearchHint {
   margin: 0 2px;
   font-size: 12px;
   color: #64748b;
@@ -570,8 +582,8 @@
 .enavi .newBadge { font-size: calc(14px * var(--fs)); }
 .enavi .field { font-size: calc(13px * var(--fs)); }
 .enavi .field select { font-size: calc(15px * var(--fs)); }
-.enavi .searchBar input { font-size: calc(15px * var(--fs)); }
-.enavi .searchHint { font-size: calc(12px * var(--fs)); }
+.enavi .kwSearchBar input { font-size: calc(15px * var(--fs)); }
+.enavi .kwSearchHint { font-size: calc(12px * var(--fs)); }
 .enavi .categoryChip { font-size: calc(13px * var(--fs)); }
 .enavi .viewTab { font-size: calc(13px * var(--fs)); }
 .enavi .checkboxLabel { font-size: calc(13px * var(--fs)); }
@@ -1270,8 +1282,8 @@
   }
 
   /* 検索バーはコンパクトに。16px未満だとiOSで自動ズームするため下限を設ける */
-  .searchBar { height: 44px; padding: 0 12px; gap: 8px; }
-  .enavi .searchBar input { font-size: max(16px, calc(15px * var(--fs))); }
+  .kwSearchBar { height: 44px; padding: 0 12px; gap: 8px; }
+  .enavi .kwSearchBar input { font-size: max(16px, calc(15px * var(--fs))); }
 
   .filterCard { padding: 12px; border-radius: 12px; }
   .filterActions { flex-wrap: wrap; }
