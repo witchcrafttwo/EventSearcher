@@ -1,4 +1,4 @@
-import { ArrowUp, Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ChevronRight, History, Map as MapIcon, MapPin, Search, Sparkles, Trash2 } from "lucide-react";
+import { ArrowUp, Bell, BellRing, Bookmark, BookmarkCheck, CalendarDays, ChevronDown, ChevronRight, History, Map as MapIcon, MapPin, Search, Sparkles, Trash2, X } from "lucide-react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { fetchAreas, hasApiConfig, searchEvents, type EventItem } from "./api";
 import { categoryColor } from "./categoryColors";
@@ -368,30 +368,32 @@ export function App() {
         </div>
 
         {searchable && (
-          <div className="searchBar">
-            <Search size={18} aria-hidden="true" />
-            <input
-              type="search"
-              value={keyword}
-              onChange={(e) => { setVisibleCount(PAGE_SIZE); setKeyword(e.target.value); }}
-              placeholder="イベント名・会場・内容で検索（例: 花火 マルシェ）"
-              aria-label="キーワードで検索"
-            />
+          <div className="searchArea">
+            <div className="searchBar">
+              <Search size={18} aria-hidden="true" />
+              <input
+                type="search"
+                value={keyword}
+                onChange={(e) => { setVisibleCount(PAGE_SIZE); setKeyword(e.target.value); }}
+                placeholder="イベント名・会場・内容で検索"
+                aria-label="キーワードで検索"
+              />
+              {trimmedKeyword && (
+                <button
+                  type="button"
+                  className="searchClear"
+                  onClick={() => { setVisibleCount(PAGE_SIZE); setKeyword(""); }}
+                  aria-label="キーワードを消す"
+                  title="キーワードを消す"
+                >
+                  <X size={15} />
+                </button>
+              )}
+            </div>
             {trimmedKeyword && (
-              <button
-                type="button"
-                className="searchClear"
-                onClick={() => { setVisibleCount(PAGE_SIZE); setKeyword(""); }}
-                aria-label="キーワードを消す"
-                title="キーワードを消す"
-              >
-                ×
-              </button>
+              <p className="searchHint">スペースで区切ると、どれかに当てはまるイベントを表示します。</p>
             )}
           </div>
-        )}
-        {searchable && trimmedKeyword && (
-          <p className="searchHint">複数の語はスペース区切りで、どれかに当てはまるイベントを表示します。</p>
         )}
 
         <form className="filterCard" onSubmit={handleSubmit} hidden={view === "saved" || view === "history"}>

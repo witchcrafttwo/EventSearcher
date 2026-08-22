@@ -83,7 +83,21 @@
   gap: 12px;
 }
 
-/* キーワード検索バー（一覧タブのみ表示） */
+/* display 指定が hidden 属性を上書きしてしまうため明示的に隠す
+   （ブックマーク・閲覧履歴タブでは絞り込みカードを出さない） */
+.filterCard[hidden] {
+  display: none;
+}
+
+/* キーワード検索バー（一覧タブのみ表示）
+   .enaviMain は素のブロックなので、下の .filterCard と密着しないよう
+   検索バーと補助文をまとめた .searchArea 側で余白を固定する。 */
+.searchArea {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 14px;
+}
+
 .searchBar {
   display: flex;
   align-items: center;
@@ -119,14 +133,15 @@
 
 .searchClear {
   flex: 0 0 auto;
+  display: grid;
+  place-items: center;
   width: 26px;
   height: 26px;
+  padding: 0;
   border: 0;
   border-radius: 50%;
   background: #e2e8f0;
   color: #475569;
-  font-size: 16px;
-  line-height: 1;
   cursor: pointer;
 }
 
@@ -135,7 +150,7 @@
 }
 
 .searchHint {
-  margin: 8px 2px 0;
+  margin: 0 2px;
   font-size: 12px;
   color: #64748b;
 }
