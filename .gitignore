@@ -10,7 +10,16 @@ cdk.out/
 .dev.vars
 *.tsbuildinfo
 えひめイベントナビ_発表資料.pptx
+えひめイベントナビ_発表資料.pdf
 make_slides.py
 えひめイベントナビ_技術スタック.xlsx
 ~$えひめイベントナビ_技術スタック.xlsx
+
+# Officeの一時ロックファイル
+~$*
+
+# エージェント向けメモ・作業用バックアップ
+AGENTS.md
+_backup_*
+_gitcheck.txt
 AGENTS.md
