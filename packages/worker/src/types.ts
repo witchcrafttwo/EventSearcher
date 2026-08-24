@@ -57,6 +57,11 @@ export type EventRecord = {
   targetAgeMax?: number;
   interests: string[];
   createdAt: string;
+  /**
+   * Web Push を送信（または滞留として打ち切り）した日時。
+   * 未設定＝未通知。収集は保存するだけで送信せず、通知配信処理が19時にまとめて送る。
+   */
+  notifiedAt?: string;
 };
 
 export type PushSubscriptionRecord = {
@@ -99,6 +104,11 @@ export type Env = {
   VAPID_PUBLIC_KEY?: string;
   VAPID_PRIVATE_KEY?: string;
   VAPID_SUBJECT?: string;
+  // --- 通知配信のスケジュール（すべて日本時間で判定する）---
+  NOTIFY_HOUR_JST?: string; // 通知配信時刻(時)。既定19。
+  QUIET_START_HOUR_JST?: string; // 通知禁止の開始時刻。既定22。
+  QUIET_END_HOUR_JST?: string; // 通知禁止の終了時刻。既定8。
+  NOTIFY_STALE_DAYS?: string; // 未通知のまま滞留と判断する日数。既定7。
   ADMIN_TOKEN?: string; // secret。管理系API(/admin/*, /sources*)の認証トークン
   CRON_SECRET?: string; // Vercel Cron 用。設定すると /cron/ingest が Bearer 一致を要求
 };

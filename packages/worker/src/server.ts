@@ -6,6 +6,7 @@ import cron from "node-cron";
 import { existsSync } from "node:fs";
 import { app } from "./index.js";
 import { runScheduledIngest } from "./ingest.js";
+import { runNotify } from "./notify.js";
 import type { Env } from "./types.js";
 
 // Node では環境変数は process.env から渡す（Cloudflare の bindings 相当）
@@ -52,6 +53,7 @@ serve(
 );
 
 // 定期収集（Cron）。既定は6時間ごと。CRON_SCHEDULE で上書き可能。DISABLE_CRON=1 で無効化。
+// 収集は何時に走っても送信しない（保存のみ）。通知は下の通知用Cronがまとめて送る。
 const schedule = process.env.CRON_SCHEDULE ?? "0 */6 * * *";
 if (process.env.DISABLE_CRON !== "1") {
   cron.schedule(schedule, () => {
@@ -61,6 +63,21 @@ if (process.env.DISABLE_CRON !== "1") {
       .catch((error) => console.error("[cron] scheduled ingest failed", error));
   });
   console.log(`[server] cron enabled: ${schedule}`);
+
+  // 通知配信は1日1回。既定は日本時間19時。NOTIFY_CRON_SCHEDULE で上書き可能。
+  // node-cron はサーバーのローカル時刻で動くため、タイムゾーンを明示して日本時間に固定する。
+  const notifySchedule = process.env.NOTIFY_CRON_SCHEDULE ?? `0 ${process.env.NOTIFY_HOUR_JST ?? 19} * * *`;
+  cron.schedule(
+    notifySchedule,
+    () => {
+      console.log(`[cron] notify start (${new Date().toISOString()})`);
+      runNotify(env)
+        .then((r) => console.log(`[cron] notify done: sent=${r.sent} pending=${r.pending} skipped=${r.skipped ?? "-"}`))
+        .catch((error) => console.error("[cron] notify failed", error));
+    },
+    { timezone: "Asia/Tokyo" }
+  );
+  console.log(`[server] notify cron enabled: ${notifySchedule} (Asia/Tokyo)`);
 } else {
   console.log("[server] cron disabled (DISABLE_CRON=1)");
 }

@@ -6,7 +6,7 @@ import { buildGeoQuery, geocode } from "./geocode.js";
 import { buildAiText, fetchPageData } from "./page.js";
 import { fetchCandidates } from "./source-fetcher.js";
 import { loadAllSources, recordIngestResult } from "./sources.js";
-import type { Env, EventRecord, EventSourceConfig, PushSubscriptionRecord, RawEventCandidate, UserProfile } from "./types.js";
+import type { Env, EventRecord, EventSourceConfig, RawEventCandidate } from "./types.js";
 
 export async function runIngest(
   env: Env,
@@ -25,9 +25,6 @@ export async function runIngest(
     const sources = sourceId ? allSources.filter((s) => s.id === sourceId) : allSources;
     candidates = await fetchCandidates(sources);
   }
-
-  const profiles = await ddb.scanAll<UserProfile>(env.PROFILES_TABLE);
-  const subscriptions = await ddb.scanAll<PushSubscriptionRecord>(env.SUBSCRIPTIONS_TABLE);
 
   // sourceId → 固定カテゴリ（管理画面で設定したサイトのみ）
   const forceCategoryById = new Map<string, string>();
@@ -71,12 +68,13 @@ export async function runIngest(
     newEvents.push(event);
   }
 
-  const notified = await notifyMatches(env, newEvents, profiles, subscriptions);
   // ヘルスチェック記録（サイト単位の収集時のみ。候補0が続くとスクレイパー故障の目印になる）
   if (sourceId && !isDiscoveryEnabled(env)) {
     await recordIngestResult(env, sourceId, { candidates: candidates.length, saved: newEvents.length }).catch(() => undefined);
   }
-  return { saved: newEvents.length, notified, candidates: candidates.length };
+  // ここでは Push を送らない。保存したイベントは notifiedAt 未設定＝未通知の状態で残り、
+  // 通知配信処理(runNotify)が日本時間19時にまとめて送る。収集時刻が通知時刻にならないようにするため。
+  return { saved: newEvents.length, notified: 0, candidates: candidates.length };
 }
 
 /** eventsテーブルを空にする（再収集前のリセット用） */
@@ -133,73 +131,8 @@ export async function runScheduledIngest(env: Env, perSourceLimit = Number.POSIT
   }
 }
 
-async function notifyMatches(
-  env: Env,
-  events: EventRecord[],
-  profiles: UserProfile[],
-  subscriptions: PushSubscriptionRecord[]
-): Promise<number> {
-  if (!env.VAPID_PUBLIC_KEY || !env.VAPID_PRIVATE_KEY || events.length === 0 || subscriptions.length === 0) return 0;
-
-  // web-push は Node ライブラリ。変数指定の動的importにして、Node(Vercel)以外(wrangler等)の
-  // バンドル/実行時に巻き込まれないようにする（未導入・非対応環境では送信をスキップ）。
-  let webpush: any;
-  try {
-    const moduleName = "web-push";
-    webpush = (await import(moduleName)).default ?? (await import(moduleName));
-    webpush.setVapidDetails(
-      env.VAPID_SUBJECT || "mailto:noreply@example.com",
-      env.VAPID_PUBLIC_KEY,
-      env.VAPID_PRIVATE_KEY
-    );
-  } catch {
-    return 0; // web-push が使えない環境では送信しない
-  }
-
-  const ddb = new DynamoClient(env);
-  const profileById = new Map(profiles.map((p) => [p.profileId, p]));
-  let sent = 0;
-  for (const sub of subscriptions) {
-    const profile = profileById.get(sub.profileId);
-    const matched = events.filter((event) => matchesForNotification(event, profile));
-    if (matched.length === 0) continue;
-    const first = matched[0];
-    const payload = JSON.stringify({
-      title: "えひめイベントナビ",
-      body: matched.length === 1 ? first.title : `「${first.title}」など新着イベント${matched.length}件`,
-      url: "/"
-    });
-    try {
-      await webpush.sendNotification(
-        { endpoint: sub.subscription.endpoint, keys: sub.subscription.keys },
-        payload
-      );
-      sent++;
-    } catch (error: any) {
-      // 404/410 は購読が失効しているので削除（掃除）
-      const status = error?.statusCode;
-      if (status === 404 || status === 410) {
-        await ddb
-          .deleteItem(env.SUBSCRIPTIONS_TABLE, { profileId: sub.profileId, endpointHash: sub.endpointHash })
-          .catch(() => undefined);
-      }
-    }
-  }
-  return sent;
-}
-
-/** 通知用のマッチ判定: エリア（部分一致）＋カテゴリ（選択したものに含まれるか）。未設定は全件対象。 */
-function matchesForNotification(event: EventRecord, profile?: UserProfile): boolean {
-  if (!profile) return true;
-  const area = (profile.area ?? "").trim();
-  const eventArea = (event.area ?? "").trim();
-  if (area && eventArea && !(eventArea.includes(area) || area.includes(eventArea))) return false;
-  const categories = profile.interests ?? [];
-  if (categories.length > 0) {
-    if (!event.category || !categories.includes(event.category)) return false;
-  }
-  return true;
-}
+// 通知の送信は notify.ts の runNotify に分離した。
+// 収集は保存のみを行い、送信は日本時間19時の通知配信処理がまとめて実施する。
 
 function createEventId(sourceId: string, url: string, title: string): Promise<string> {
   return sha256Hex(`${sourceId}:${url}:${title}`);

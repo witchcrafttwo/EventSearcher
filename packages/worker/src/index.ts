@@ -8,6 +8,7 @@ import { debugEnrich, enrichCandidate } from "./event-ai.js";
 import { clearEvents, clearEventsForSource, previewIngest, runIngest, runScheduledIngest } from "./ingest.js";
 import { chat } from "./llm.js";
 import { matchesProfile } from "./matching.js";
+import { isQuietHours, jstParts, notifyHourJst, runNotify } from "./notify.js";
 import { buildAiText, fetchPageData, fetchPageText } from "./page.js";
 import { setupTables } from "./setup.js";
 import { fetchCandidates } from "./source-fetcher.js";
@@ -270,10 +271,51 @@ app.get("/cron/ingest", async (c) => {
   if (secret && c.req.header("authorization") !== `Bearer ${secret}`) {
     return c.json({ message: "unauthorized" }, 401);
   }
+  // 収集 → 通知配信 の順に実行する。Cronは日本時間19時に設定してあるので、
+  // 収集した新着がその場でまとめて通知される。収集自体は通知禁止時間帯でも保存を続ける。
   c.executionCtx.waitUntil(
-    runScheduledIngest(c.env).catch((error) => console.error("cron ingest failed", error))
+    runScheduledIngest(c.env)
+      .then(() => runNotify(c.env))
+      .catch((error) => console.error("cron ingest failed", error))
   );
   return c.json({ ok: true, started: true });
+});
+
+// 通知配信のみを実行するトリガ（日本時間19時想定）。禁止時間帯なら送信せず保留する。
+app.get("/cron/notify", async (c) => {
+  const secret = c.env.CRON_SECRET;
+  if (secret && c.req.header("authorization") !== `Bearer ${secret}`) {
+    return c.json({ message: "unauthorized" }, 401);
+  }
+  c.executionCtx.waitUntil(
+    runNotify(c.env).catch((error) => console.error("cron notify failed", error))
+  );
+  return c.json({ ok: true, started: true });
+});
+
+// 通知の状態確認（管理画面/動作確認用）。送信はしない。
+app.get("/admin/notify-status", async (c) => {
+  const { iso } = jstParts();
+  const ddb = new DynamoClient(c.env);
+  const events = await ddb.scanAll<EventRecord>(c.env.EVENTS_TABLE);
+  const pending = events.filter((e) => e.eventType === "event" && !e.notifiedAt).length;
+  const subscriptions = await ddb.scanAll<PushSubscriptionRecord>(c.env.SUBSCRIPTIONS_TABLE);
+  return c.json({
+    jst: iso,
+    notifyHourJst: notifyHourJst(c.env),
+    quietHours: `${c.env.QUIET_START_HOUR_JST ?? 22}:00-${c.env.QUIET_END_HOUR_JST ?? 8}:00 JST`,
+    inQuietHours: isQuietHours(c.env),
+    staleDays: Number(c.env.NOTIFY_STALE_DAYS ?? 7),
+    pendingEvents: pending,
+    subscriptions: subscriptions.length,
+    configured: Boolean(c.env.VAPID_PUBLIC_KEY && c.env.VAPID_PRIVATE_KEY)
+  });
+});
+
+// 通知の手動実行（管理画面用）。?force=true で通知禁止時間帯でも送信する。
+app.post("/admin/notify", async (c) => {
+  const force = c.req.query("force") === "true";
+  return c.json(await runNotify(c.env, { force }));
 });
 
 // 初期セットアップ: DynamoDBテーブルを3つ作成（冪等）
